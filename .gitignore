@@ -1,0 +1,61 @@
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+.vite/
+.vscode/
+.idea/
+.env
+.env.*
+!.env.example
+logs/
+*.log
+*.log.*
+coverage/
+coverage-final.json
+*.lcov
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+
+*.tsbuildinfo
+
+.vite/
+jest.config.js
+.vitest/
+*.spec.ts
+*.test.ts
+
+*.local
+*.bak
+*.orig
+
+# Backend environment files
+backend/.env
+backend/.env.local
+backend/.env.*.local
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+*.test.ts
+*.spec.ts
+
+# Temporary files
+*.tmp
+*.temp
+~*
