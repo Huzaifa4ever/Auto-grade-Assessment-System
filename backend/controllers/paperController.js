@@ -18,3 +18,15 @@ export const getAllPapers = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const getPaperById = async (req, res) => {
+  try {
+    const paper = await Paper.findById(req.params.id);
+    if (!paper) {
+      return res.status(404).json({ message: 'Paper not found' });
+    }
+    res.json(paper);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

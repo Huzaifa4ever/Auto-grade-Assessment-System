@@ -10,6 +10,7 @@ const subPartSchema = new mongoose.Schema({
   label: String,
   text: String,
   marks: Number,
+  pages: Number,
   rubrics: [rubricSchema]
 });
 
@@ -19,6 +20,7 @@ const partSchema = new mongoose.Schema({
   text: String,
   marks: Number,
   rubrics: [rubricSchema],
+  pages: Number,
   subParts: [subPartSchema]
 });
 
@@ -28,6 +30,7 @@ const questionSchema = new mongoose.Schema({
   text: String,
   marks: Number,
   rubrics: [rubricSchema],
+  pages: Number,
   parts: [partSchema]
 });
 partSchema
@@ -35,7 +38,14 @@ const paperSchema = new mongoose.Schema({
   name: String,
   rawText: String,
   questions: [questionSchema],
-  totalMarks: Number
+  totalMarks: Number,
+  examDate: String,
+  allocatedTime: String,
+  className: String,
+  courseName: String,
+  instructor: String,
+  section: String,
+  studentTableId: String
 });
 
 const Paper = mongoose.model("Paper", paperSchema);
