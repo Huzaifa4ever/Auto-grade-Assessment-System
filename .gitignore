@@ -59,3 +59,35 @@ coverage/
 *.tmp
 *.temp
 ~*
+
+# Security - API Keys and Secrets
+*.key
+*.pem
+*.p12
+*.pfx
+.env.production
+.env.development
+
+# Database
+*.sqlite
+*.db
+data/
+mongodb/
+
+# Build artifacts
+backend/dist/
+backend/build/
+
+# Package lock files (optional - uncomment to include)
+# package-lock.json
+# backend/package-lock.json
+# yarn.lock
+
+# Large files
+*.pdf
+uploads/
+generated/
+
+# Sensitive configs
+config/production.js
+config/secrets.js
