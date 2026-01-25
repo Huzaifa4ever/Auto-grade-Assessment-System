@@ -43,6 +43,7 @@ const paperSchema = new mongoose.Schema({
   allocatedTime: String,
   className: String,
   courseName: String,
+  courseCode: String,
   instructor: String,
   section: String,
   studentTableId: String
