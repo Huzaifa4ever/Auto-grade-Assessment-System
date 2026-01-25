@@ -1,0 +1,111 @@
+.wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.input:focus {
+    border-color: #198754;
+}
+
+.dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+.loading,
+.placeholder,
+.noResults {
+    padding: 12px 16px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+}
+
+.item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.15s;
+}
+
+.item:hover,
+.item.selected {
+    background-color: #f8f9fa;
+}
+
+.item:last-child {
+    border-bottom: none;
+}
+
+.courseCode {
+    font-weight: 600;
+    color: #198754;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.courseName {
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.department {
+    color: #666;
+    font-size: 12px;
+}
+
+.emptyState {
+    padding: 16px;
+}
+
+.noResults {
+    padding: 8px 0;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.addNewButton {
+    width: 100%;
+    padding: 10px 16px;
+    background-color: #198754;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.addNewButton:hover,
+.addNewButton.selected {
+    background-color: #157347;
+}
+
+.addNewButton:active {
+    transform: scale(0.98);
+}
