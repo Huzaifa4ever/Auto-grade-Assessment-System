@@ -5,6 +5,7 @@ import connectDB from "./config/db.js";
 import paperRoutes from "./routes/paperRoutes.js";
 import studentTableRoutes from "./routes/studentCsvRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
+import answerSheetRoutes from "./routes/answerSheetRoutes.js";
 import Cerebras from "@cerebras/cerebras_cloud_sdk";
 
 dotenv.config();
@@ -120,6 +121,7 @@ Return ONLY the JSON object now:`;
 app.use("/api/papers", paperRoutes);
 app.use("/api/student-tables", studentTableRoutes);
 app.use("/api/courses", courseRoutes);
+app.use("/api/answer-sheets", answerSheetRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
