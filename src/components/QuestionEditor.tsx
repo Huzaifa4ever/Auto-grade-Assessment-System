@@ -45,6 +45,12 @@ export default function QuestionEditor({ paper, setPaper }: Props) {
 								value={q.marks ?? ''}
 								onChange={(val) => update((p) => (p.questions[qi].marks = val ? Number(val) : null))}
 							/>
+							<EditableInput
+								label="Pages"
+								type="number"
+								value={q.pages ?? ''}
+								onChange={(val) => update((p) => (p.questions[qi].pages = val ? Number(val) : null))}
+							/>
 						</div>
 						<EditableTextArea
 							label="Question Text"
@@ -85,6 +91,12 @@ export default function QuestionEditor({ paper, setPaper }: Props) {
 										value={pt.marks ?? ''}
 										onChange={(val) => update((p) => (p.questions[qi].parts[pi].marks = val ? Number(val) : null))}
 									/>
+									<EditableInput
+										label="Pages"
+										type="number"
+										value={pt.pages ?? ''}
+										onChange={(val) => update((p) => (p.questions[qi].parts[pi].pages = val ? Number(val) : null))}
+									/>
 								</div>
 								<EditableTextArea
 									label="Part Text"
@@ -124,6 +136,12 @@ export default function QuestionEditor({ paper, setPaper }: Props) {
 												type="number"
 												value={sp.marks ?? ''}
 												onChange={(val) => update((p) => (p.questions[qi].parts[pi].subParts[si].marks = val ? Number(val) : null))}
+											/>
+											<EditableInput
+												label="Pages"
+												type="number"
+												value={sp.pages ?? ''}
+												onChange={(val) => update((p) => (p.questions[qi].parts[pi].subParts[si].pages = val ? Number(val) : null))}
 											/>
 										</div>
 										<EditableTextArea

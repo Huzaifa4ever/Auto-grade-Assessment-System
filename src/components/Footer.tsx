@@ -5,8 +5,7 @@ export default function Footer() {
 	return (
 		<footer className={styles.footer}>
 			<div className={styles.footerContent}>
-				<p>&copy; 2025 Automated Answer Sheet Assessment System. All rights reserved.</p>
-				<p>Version 1.0</p>
+				<p>&copy; 2026 Automated Answer Sheet Assessment System. All rights reserved.</p>
 			</div>
 		</footer>
 	);

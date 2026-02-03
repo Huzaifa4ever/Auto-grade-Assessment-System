@@ -15,10 +15,13 @@ export default function Layout({ children, activePage, onPageChange }: Props) {
 
 	return (
 		<div className={styles.layout}>
-			<Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+			<Header
+				onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+				onPageChange={onPageChange}
+			/>
 			<div className={styles.layoutContent}>
-				<Sidebar 
-					isOpen={sidebarOpen} 
+				<Sidebar
+					isOpen={sidebarOpen}
 					activePage={activePage}
 					onPageChange={onPageChange}
 				/>

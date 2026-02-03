@@ -3,14 +3,15 @@ import styles from './Header.module.css';
 
 type Props = {
 	onToggleSidebar: () => void;
+	onPageChange?: (page: string) => void;
 };
 
-export default function Header({ onToggleSidebar }: Props) {
+export default function Header({ onToggleSidebar, onPageChange }: Props) {
 	return (
 		<header className={styles.header}>
 			<div className={styles.headerLeft}>
-				<button 
-					className={styles.menuToggle} 
+				<button
+					className={styles.menuToggle}
 					onClick={onToggleSidebar}
 					aria-label="Toggle sidebar"
 				>
@@ -19,6 +20,14 @@ export default function Header({ onToggleSidebar }: Props) {
 				<h1 className={styles.appTitle}>Automated Answer Sheet Assessment System</h1>
 			</div>
 			<div className={styles.headerRight}>
+				<button
+					className={styles.settingsButton}
+					onClick={() => onPageChange?.('settings')}
+					aria-label="Settings"
+					title="Settings"
+				>
+					⚙️
+				</button>
 				<div className={styles.userInfo}>
 					<span className={styles.userName}>Teacher Profile</span>
 					<div className={styles.userAvatar}>
