@@ -1,8 +1,6 @@
-
-
-
 .page {
-	padding: 0;
+	padding: 24px;
+	max-width: 900px;
 }
 
 .pageHeader {
@@ -10,61 +8,26 @@
 }
 
 .pageHeader h2 {
-	margin: 0 0 8px 0;
-	color: var(--text);
-	font-size: 28px;
-	font-weight: 700;
+	margin: 0 0 4px 0;
+	font-size: 1.5rem;
+	font-weight: 600;
 }
 
 .pageHeader p {
 	margin: 0;
-	color: var(--muted);
-	font-size: 16px;
-}
-
-.card {
-	background: var(--panel);
-	border: 1px solid var(--border);
-	border-radius: 12px;
-	padding: 24px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.card h3 {
-	margin: 0 0 16px 0;
-	color: var(--text);
-	font-size: 20px;
-	font-weight: 600;
-}
-
-.card p {
-	margin: 0 0 16px 0;
-	color: var(--muted);
-	line-height: 1.6;
-}
-
-.card ul {
-	margin: 0;
-	padding-left: 20px;
-}
-
-.card li {
-	margin-bottom: 8px;
-	color: var(--text);
-	line-height: 1.5;
+	color: var(--color-text-secondary);
 }
 
 .actionsRow {
 	display: flex;
 	align-items: center;
-	gap: 16px;
-	flex-wrap: wrap;
+	gap: 12px;
+	margin-bottom: 12px;
 }
 
 .instruction {
-	margin-top: 8px;
-	color: var(--muted);
-	font-size: 14px;
+	font-size: 0.9rem;
+	color: var(--color-text-secondary);
 }
 
 .selectGroup {
@@ -74,34 +37,35 @@
 }
 
 .selectLabel {
-	font-size: 14px;
-	color: var(--muted);
 	font-weight: 500;
 }
 
 .selectControl {
-	appearance: none;
-	background-color: #fff;
-	border: 1px solid var(--border);
-	border-radius: 8px;
 	padding: 10px 12px;
-	font-size: 14px;
-	color: var(--text);
-	box-shadow: 0 1px 2px rgba(0,0,0,0.04) inset;
+	border: 1px solid var(--color-border);
+	border-radius: 6px;
+	font-size: 1rem;
+	background: var(--color-bg);
+	cursor: pointer;
 }
 
 .selectControl:focus {
 	outline: none;
-	border-color: #6ea8fe;
-	box-shadow: 0 0 0 4px rgba(110,168,254,0.2);
+	border-color: var(--color-primary);
+	box-shadow: 0 0 0 2px var(--color-primary-light);
 }
 
-@media (max-width: 768px) {
-	.pageHeader h2 {
-		font-size: 24px;
-	}
-	
-	.card {
-		padding: 20px;
+.spinner {
+	width: 20px;
+	height: 20px;
+	border: 2px solid #e0e0e0;
+	border-top-color: var(--color-primary);
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
 	}
 }

@@ -1,7 +1,7 @@
-
-
 .page {
-	padding: 0;
+	padding: 24px;
+	max-width: 1200px;
+	margin: 0 auto;
 }
 
 .pageHeader {
@@ -10,55 +10,293 @@
 
 .pageHeader h2 {
 	margin: 0 0 8px 0;
-	color: var(--text);
 	font-size: 28px;
-	font-weight: 700;
+	color: #1a1a1a;
 }
 
 .pageHeader p {
 	margin: 0;
-	color: var(--muted);
-	font-size: 16px;
+	color: #666;
 }
 
-.card {
-	background: var(--panel);
-	border: 1px solid var(--border);
-	border-radius: 12px;
-	padding: 24px;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+.sectionHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	margin-bottom: 20px;
+	gap: 16px;
 }
 
-.card h3 {
-	margin: 0 0 16px 0;
-	color: var(--text);
+.sectionHeader h3 {
+	margin: 0 0 4px 0;
 	font-size: 20px;
+}
+
+.searchSection {
+	margin-bottom: 16px;
+}
+
+.searchInput {
+	width: 100%;
+	max-width: 400px;
+	padding: 10px 16px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 14px;
+}
+
+.searchInput:focus {
+	outline: none;
+	border-color: #198754;
+}
+
+.loading,
+.error {
+	padding: 16px;
+	text-align: center;
+	border-radius: 4px;
+}
+
+.error {
+	background-color: #fee;
+	color: #c00;
+	border: 1px solid #fcc;
+}
+
+.tableWrapper {
+	overflow-x: auto;
+	border: 1px solid #e0e0e0;
+	border-radius: 4px;
+}
+
+.courseTable {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 14px;
+}
+
+.courseTable thead {
+	background-color: #f8f9fa;
+}
+
+.courseTable th {
+	padding: 12px 16px;
+	text-align: left;
 	font-weight: 600;
+	color: #333;
+	border-bottom: 2px solid #dee2e6;
 }
 
-.card p {
-	margin: 0 0 16px 0;
-	color: var(--muted);
-	line-height: 1.6;
+.courseTable td {
+	padding: 12px 16px;
+	border-bottom: 1px solid #e9ecef;
 }
 
-.card ul {
+.courseTable tbody tr:hover {
+	background-color: #f8f9fa;
+}
+
+.courseCode {
+	font-weight: 600;
+	color: #198754;
+}
+
+.department {
+	color: #666;
+}
+
+.actions {
+	display: flex;
+	gap: 8px;
+}
+
+.editButton,
+.deleteButton {
+	padding: 6px 12px;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 13px;
+	transition: all 0.2s;
+}
+
+.editButton {
+	background-color: #0d6efd;
+	color: white;
+}
+
+.editButton:hover {
+	background-color: #0b5ed7;
+}
+
+.deleteButton {
+	background-color: #dc3545;
+	color: white;
+}
+
+.deleteButton:hover {
+	background-color: #bb2d3b;
+}
+
+.noResults {
+	text-align: center;
+	color: #666;
+	font-style: italic;
+}
+
+.tableFooter {
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid #e9ecef;
+	color: #666;
+}
+
+/* Modal Styles */
+.modalOverlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	padding: 20px;
+}
+
+.modal {
+	background: white;
+	border-radius: 8px;
+	width: 100%;
+	max-width: 500px;
+	max-height: 90vh;
+	display: flex;
+	flex-direction: column;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modalSmall {
+	background: white;
+	border-radius: 8px;
+	width: 100%;
+	max-width: 400px;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modalHeader {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 20px 24px;
+	border-bottom: 1px solid #e9ecef;
+}
+
+.modalHeader h3 {
 	margin: 0;
-	padding-left: 20px;
+	font-size: 20px;
 }
 
-.card li {
-	margin-bottom: 8px;
-	color: var(--text);
-	line-height: 1.5;
+.closeButton {
+	background: none;
+	border: none;
+	font-size: 24px;
+	cursor: pointer;
+	color: #666;
+	padding: 0;
+	width: 32px;
+	height: 32px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	transition: all 0.2s;
 }
 
-@media (max-width: 768px) {
-	.pageHeader h2 {
-		font-size: 24px;
-	}
-	
-	.card {
-		padding: 20px;
-	}
+.closeButton:hover {
+	background-color: #f0f0f0;
+	color: #333;
+}
+
+.modalBody {
+	padding: 24px;
+	overflow-y: auto;
+}
+
+.formError {
+	padding: 12px;
+	background-color: #fee;
+	color: #c00;
+	border: 1px solid #fcc;
+	border-radius: 4px;
+	margin-bottom: 16px;
+	font-size: 14px;
+}
+
+.formField {
+	margin-bottom: 20px;
+}
+
+.formField label {
+	display: block;
+	margin-bottom: 6px;
+	font-weight: 500;
+	color: #333;
+	font-size: 14px;
+}
+
+.formField input {
+	width: 100%;
+	padding: 10px 12px;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	font-size: 14px;
+	box-sizing: border-box;
+}
+
+.formField input:focus {
+	outline: none;
+	border-color: #198754;
+}
+
+.formField p {
+	margin: 4px 0 0 0;
+	color: #666;
+}
+
+.modalFooter {
+	padding: 16px 24px;
+	border-top: 1px solid #e9ecef;
+	display: flex;
+	justify-content: flex-end;
+	gap: 12px;
+}
+
+.deleteCourseInfo {
+	padding: 12px;
+	background-color: #f8f9fa;
+	border-radius: 4px;
+	margin: 12px 0;
+}
+
+.deleteConfirmButton {
+	background-color: #dc3545;
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 14px;
+	font-weight: 500;
+	transition: all 0.2s;
+}
+
+.deleteConfirmButton:hover {
+	background-color: #bb2d3b;
+}
+
+.deleteConfirmButton:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
 }

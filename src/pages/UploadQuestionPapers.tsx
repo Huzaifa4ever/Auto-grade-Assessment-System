@@ -18,6 +18,7 @@ type Props = {
 	error: string | null;
 	setError: (error: string | null) => void;
 	totalMarks: number;
+	onPageChange?: (page: string) => void;
 };
 
 export default function UploadQuestionPapers({
@@ -27,7 +28,8 @@ export default function UploadQuestionPapers({
 	setLoading,
 	error,
 	setError,
-	totalMarks
+	totalMarks,
+	onPageChange
 }: Props) {
 	const [saving, setSaving] = useState(false);
 	const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -572,9 +574,9 @@ export default function UploadQuestionPapers({
 								}
 							}}
 							onAddNew={(searchTerm) => {
-								// Navigate to Settings page (will implement Settings later)
-								alert(`Add new course: "${searchTerm}"\nRedirecting to Settings page...`);
-								// TODO: Navigate to Settings page with pre-filled course name
+								if (onPageChange) {
+									onPageChange('settings');
+								}
 							}}
 							placeholder="Search for a course..."
 						/>

@@ -14,53 +14,58 @@ export default function Dashboard({ onNavigate }: Props) {
 		<div className={styles.page}>
 			<div className={styles.pageHeader}>
 				<h2>Dashboard</h2>
-				<p>Welcome to the Auto Grade System</p>
+				<p>Welcome to the Auto Grade System - Manage your exams and grading workflow</p>
 			</div>
-			
+
 			<div className={styles.dashboardGrid}>
-				<button 
+				<button
 					className={`${styles.dashboardCard} ${styles.clickable}`}
 					onClick={() => handleCardClick('upload-question-papers')}
 				>
 					<div className={styles.cardIcon}>📄</div>
 					<div className={styles.cardContent}>
-						<h3>Question Papers</h3>
-						<p>Upload and manage question papers</p>
+						<h3>Upload Question Papers</h3>
+						<p>Upload PDF or create question papers manually with questions, parts, and sub-parts</p>
 					</div>
+					<div className={styles.cardArrow}>→</div>
 				</button>
-				
-				<button 
+
+				<button
 					className={`${styles.dashboardCard} ${styles.clickable}`}
 					onClick={() => handleCardClick('upload-answer-sheets')}
 				>
 					<div className={styles.cardIcon}>📝</div>
 					<div className={styles.cardContent}>
-						<h3>Answer Sheets</h3>
-						<p>Upload and process student answer sheets</p>
+						<h3>Upload Answer Sheets</h3>
+						<p>Upload student answer sheets in PDF format for automated grading</p>
 					</div>
+					<div className={styles.cardArrow}>→</div>
 				</button>
-				
-				<button 
+
+				<button
+					className={`${styles.dashboardCard} ${styles.clickable}`}
+					onClick={() => handleCardClick('download-answer-sheets')}
+				>
+					<div className={styles.cardIcon}>📥</div>
+					<div className={styles.cardContent}>
+						<h3>Download Answer Sheets</h3>
+						<p>Generate and download blank answer sheets for students based on question papers</p>
+					</div>
+					<div className={styles.cardArrow}>→</div>
+				</button>
+
+				<button
 					className={`${styles.dashboardCard} ${styles.clickable}`}
 					onClick={() => handleCardClick('student-reports')}
 				>
 					<div className={styles.cardIcon}>📈</div>
 					<div className={styles.cardContent}>
-						<h3>Reports</h3>
-						<p>View student performance reports</p>
+						<h3>Student Reports</h3>
+						<p>View detailed performance reports and analytics for students</p>
 					</div>
+					<div className={styles.cardArrow}>→</div>
 				</button>
-				
-				<button 
-					className={`${styles.dashboardCard} ${styles.clickable}`}
-					onClick={() => handleCardClick('settings')}
-				>
-					<div className={styles.cardIcon}>⚙️</div>
-					<div className={styles.cardContent}>
-						<h3>Settings</h3>
-						<p>Configure system settings</p>
-					</div>
-				</button>
+
 			</div>
 		</div>
 	);

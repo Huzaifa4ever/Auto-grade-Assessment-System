@@ -34,7 +34,6 @@ export default function DownloadAnswerSheets({
 	const [studentTables, setStudentTables] = useState<StudentTable[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	// selectedPaperId and selectedStudentTableId are now props (persisted in App.tsx)
 	const [downloading, setDownloading] = useState(false);
 	const [viewDialogOpen, setViewDialogOpen] = useState(false);
 	const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
@@ -107,7 +106,6 @@ export default function DownloadAnswerSheets({
 		}
 	}, [selectedStudentTableId, studentTables]);
 
-	// Resolve courseCode with backward compatibility
 	useEffect(() => {
 		async function resolveCourseCode() {
 			if (!selectedPaper) {
@@ -117,7 +115,6 @@ export default function DownloadAnswerSheets({
 
 			let courseCode = selectedPaper.courseCode || '';
 
-			// Backward compatibility: If paper doesn't have courseCode, try to find it
 			if (!courseCode && selectedPaper.courseName) {
 				try {
 					const { searchCourses } = await import('../services/api');
@@ -143,16 +140,13 @@ export default function DownloadAnswerSheets({
 		setError(null);
 
 		try {
-			// Get courseCode - if not present, try to find it from courseName
 			let courseCode = selectedPaper.courseCode || '';
 
-			// Backward compatibility: If paper doesn't have courseCode, try to find it
 			if (!courseCode && selectedPaper.courseName) {
 				try {
 					const { searchCourses } = await import('../services/api');
 					const searchResult = await searchCourses(selectedPaper.courseName);
 					if (searchResult.success && searchResult.data && searchResult.data.length > 0) {
-						// Use the first matching course code
 						courseCode = searchResult.data[0].courseCode;
 					}
 				} catch (err) {
@@ -167,7 +161,7 @@ export default function DownloadAnswerSheets({
 				selectedPaper.allocatedTime || '',
 				selectedPaper.className || '',
 				selectedPaper.courseName || '',
-				courseCode,  // Use found courseCode or empty string
+				courseCode,
 				selectedPaper.instructor || '',
 				selectedPaper.section || ''
 			);

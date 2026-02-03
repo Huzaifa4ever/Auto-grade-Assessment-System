@@ -1,23 +1,85 @@
-
 .page {
 	padding: 0;
+	max-width: 1400px;
+	margin: 0 auto;
 }
 
 .pageHeader {
-	margin-bottom: 24px;
+	margin-bottom: 32px;
 }
 
 .pageHeader h2 {
 	margin: 0 0 8px 0;
-	color: var(--text);
-	font-size: 28px;
+	color: #1a1a1a;
+	font-size: 32px;
 	font-weight: 700;
 }
 
 .pageHeader p {
 	margin: 0;
-	color: var(--muted);
+	color: #666;
 	font-size: 16px;
+	line-height: 1.5;
+}
+
+.statsSection {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 16px;
+	margin-bottom: 40px;
+}
+
+.statCard {
+	background: #ffffff;
+	border: 1px solid #e5e7eb;
+	border-left: 4px solid #198754;
+	border-radius: 12px;
+	padding: 20px;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.statCard:nth-child(2) {
+	border-left-color: #0d6efd;
+}
+
+.statCard:nth-child(3) {
+	border-left-color: #6f42c1;
+}
+
+.statCard:nth-child(4) {
+	border-left-color: #fd7e14;
+}
+
+.statCard:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+	border-left-width: 5px;
+}
+
+.statIcon {
+	font-size: 36px;
+	opacity: 0.85;
+	filter: grayscale(20%);
+}
+
+.statContent {
+	flex: 1;
+}
+
+.statValue {
+	font-size: 18px;
+	font-weight: 600;
+	margin-bottom: 4px;
+	color: #1a1a1a;
+}
+
+.statLabel {
+	font-size: 13px;
+	color: #6b7280;
 }
 
 .dashboardGrid {
@@ -28,21 +90,21 @@
 }
 
 .dashboardCard {
-	background: var(--panel);
-	border: 1px solid var(--border);
+	background: #ffffff;
+	border: 2px solid #e0e0e0;
 	border-radius: 12px;
-	padding: 24px;
+	padding: 28px;
 	display: flex;
 	align-items: center;
-	gap: 16px;
+	gap: 20px;
 	transition: all 0.3s ease;
 	position: relative;
 	overflow: hidden;
 }
 
 .dashboardCard.clickable {
-	background: none;
-	border: 1px solid var(--border);
+	background: #ffffff;
+	border: 2px solid #e0e0e0;
 	cursor: pointer;
 	width: 100%;
 	text-align: left;
@@ -50,9 +112,9 @@
 
 .dashboardCard.clickable:hover {
 	transform: translateY(-4px);
-	box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-	background: var(--panel);
-	border-color: var(--accent);
+	box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+	background: #ffffff;
+	border-color: #198754;
 }
 
 .dashboardCard.clickable:active {
@@ -67,7 +129,7 @@
 	left: 0;
 	right: 0;
 	height: 4px;
-	background: linear-gradient(90deg, var(--accent), var(--accent-2));
+	background: linear-gradient(90deg, #198754, #20c997);
 	transform: scaleX(0);
 	transition: transform 0.3s ease;
 }
@@ -76,32 +138,50 @@
 	transform: scaleX(1);
 }
 
+.cardArrow {
+	font-size: 24px;
+	color: #198754;
+	opacity: 0;
+	transition: opacity 0.3s ease, transform 0.3s ease;
+	transform: translateX(-10px);
+}
+
+.dashboardCard.clickable:hover .cardArrow {
+	opacity: 1;
+	transform: translateX(0);
+}
+
 .cardIcon {
-	font-size: 32px;
+	font-size: 40px;
 	transition: transform 0.3s ease;
+	flex-shrink: 0;
 }
 
 .dashboardCard.clickable:hover .cardIcon {
-	transform: scale(1.1);
+	transform: scale(1.15) rotate(5deg);
+}
+
+.cardContent {
+	flex: 1;
 }
 
 .cardContent h3 {
-	margin: 0 0 8px 0;
-	color: var(--text);
-	font-size: 18px;
+	margin: 0 0 10px 0;
+	color: #1a1a1a;
+	font-size: 20px;
 	font-weight: 600;
 	transition: color 0.3s ease;
 }
 
 .dashboardCard.clickable:hover .cardContent h3 {
-	color: var(--accent);
+	color: #198754;
 }
 
 .cardContent p {
 	margin: 0;
-	color: var(--muted);
+	color: #666;
 	font-size: 14px;
-	line-height: 1.4;
+	line-height: 1.6;
 }
 
 @media (max-width: 768px) {
@@ -109,12 +189,40 @@
 		grid-template-columns: 1fr;
 		gap: 16px;
 	}
-	
+
+	.statsSection {
+		grid-template-columns: repeat(2, 1fr);
+		gap: 12px;
+		margin-bottom: 24px;
+	}
+
 	.dashboardCard {
 		padding: 20px;
+		flex-direction: column;
+		text-align: center;
 	}
-	
+
+	.cardArrow {
+		display: none;
+	}
+
 	.pageHeader h2 {
 		font-size: 24px;
+	}
+
+	.statCard {
+		padding: 16px;
+	}
+
+	.statIcon {
+		font-size: 28px;
+	}
+
+	.statValue {
+		font-size: 16px;
+	}
+
+	.statLabel {
+		font-size: 12px;
 	}
 }
