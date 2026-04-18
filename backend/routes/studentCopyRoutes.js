@@ -1,11 +1,12 @@
 import express from "express";
 import StudentCopy from "../models/StudentCopy.js";
+import authMiddleware from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
     try {
-        const sessions = await StudentCopy.find()
+        const sessions = await StudentCopy.find({ teacherId: req.teacherId })
             .sort({ createdAt: -1 })
             .populate('paperId', 'name courseCode');
 
@@ -22,9 +23,9 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.get('/:sessionId', async (req, res) => {
+router.get('/:sessionId', authMiddleware, async (req, res) => {
     try {
-        const session = await StudentCopy.findOne({ sessionId: req.params.sessionId })
+        const session = await StudentCopy.findOne({ sessionId: req.params.sessionId, teacherId: req.teacherId })
             .populate('paperId', 'name courseCode');
 
         if (!session) {
@@ -47,7 +48,7 @@ router.get('/:sessionId', async (req, res) => {
     }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
     try {
         const { sessionId, paperId, students } = req.body;
 
@@ -62,6 +63,7 @@ router.post('/', async (req, res) => {
         if (existing) {
             existing.students = students;
             existing.paperId = paperId;
+            existing.teacherId = req.teacherId;
             await existing.save();
 
             return res.json({
@@ -74,6 +76,7 @@ router.post('/', async (req, res) => {
         const session = new StudentCopy({
             sessionId,
             paperId,
+            teacherId: req.teacherId,
             students
         });
 
@@ -92,9 +95,9 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.delete('/:sessionId', async (req, res) => {
+router.delete('/:sessionId', authMiddleware, async (req, res) => {
     try {
-        const result = await StudentCopy.findOneAndDelete({ sessionId: req.params.sessionId });
+        const result = await StudentCopy.findOneAndDelete({ sessionId: req.params.sessionId, teacherId: req.teacherId });
 
         if (!result) {
             return res.status(404).json({
@@ -116,11 +119,11 @@ router.delete('/:sessionId', async (req, res) => {
     }
 });
 
-router.delete('/:sessionId/students/:cmsId', async (req, res) => {
+router.delete('/:sessionId/students/:cmsId', authMiddleware, async (req, res) => {
     try {
         const { sessionId, cmsId } = req.params;
 
-        const session = await StudentCopy.findOne({ sessionId });
+        const session = await StudentCopy.findOne({ sessionId, teacherId: req.teacherId });
 
         if (!session) {
             return res.status(404).json({
@@ -164,9 +167,9 @@ router.delete('/:sessionId/students/:cmsId', async (req, res) => {
     }
 });
 
-router.delete('/', async (req, res) => {
+router.delete('/', authMiddleware, async (req, res) => {
     try {
-        await StudentCopy.deleteMany({});
+        await StudentCopy.deleteMany({ teacherId: req.teacherId });
 
         res.json({
             success: true,

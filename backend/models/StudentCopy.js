@@ -12,6 +12,7 @@ const studentSchema = new mongoose.Schema({
 const studentCopySchema = new mongoose.Schema({
     sessionId: { type: String, required: true, unique: true },
     paperId: { type: mongoose.Schema.Types.ObjectId, ref: 'Paper' },
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
     students: [studentSchema]
 }, {
     timestamps: true
