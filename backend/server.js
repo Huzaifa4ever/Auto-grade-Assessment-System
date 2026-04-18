@@ -6,10 +6,25 @@ import paperRoutes from "./routes/paperRoutes.js";
 import studentTableRoutes from "./routes/studentCsvRoutes.js";
 import courseRoutes from "./routes/courseRoutes.js";
 import answerSheetRoutes from "./routes/answerSheetRoutes.js";
+import studentCopyRoutes from "./routes/studentCopyRoutes.js";
+import ocrRoutes from "./routes/ocrRoutes.js";
+import evaluationRoutes from "./routes/evaluationRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import authMiddleware from "./middleware/authMiddleware.js";
 import Cerebras from "@cerebras/cerebras_cloud_sdk";
+import EvaluationResult from "./models/EvaluationResult.js";
+import StudentCopy from "./models/StudentCopy.js";
+import Paper from "./models/Paper.js";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 
 dotenv.config();
 connectDB();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TEMP_FOLDER = path.resolve(__dirname, '../pdf_processor/temp');
 
 const cerebras = new Cerebras({
   apiKey: process.env.CEREBRAS_API_KEY
@@ -19,7 +34,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.post("/api/parse-pdf-text", async (req, res) => {
+app.post("/api/parse-pdf-text", authMiddleware, async (req, res) => {
   const { extractedText } = req.body;
 
   if (!extractedText || extractedText.trim() === "") {
@@ -118,10 +133,77 @@ Return ONLY the JSON object now:`;
   }
 });
 
+app.post("/api/evaluation/evaluate-internal/:sessionId/:cmsId", async (req, res) => {
+  const { sessionId, cmsId } = req.params;
+
+  try {
+    // Find the StudentCopy to get paperId and teacherId
+    const studentCopy = await StudentCopy.findOne({ sessionId }).populate('paperId');
+    if (!studentCopy || !studentCopy.paperId) {
+      return res.status(404).json({ success: false, error: 'No paper linked to this session.' });
+    }
+
+    const paper = studentCopy.paperId;
+    const teacherId = studentCopy.teacherId;
+
+    // Load OCR results
+    const ocrPath = path.resolve(TEMP_FOLDER, sessionId, cmsId, 'ocr_results.json');
+    if (!ocrPath.startsWith(TEMP_FOLDER) || !fs.existsSync(ocrPath)) {
+      return res.status(404).json({ success: false, error: 'OCR results not found.' });
+    }
+    const ocrResults = JSON.parse(fs.readFileSync(ocrPath, 'utf-8'));
+
+    // Find student info
+    const studentInfo = studentCopy.students.find(s => s.cmsId === cmsId);
+    const studentName = studentInfo?.name || '';
+
+    // Check if already evaluating
+    const existing = await EvaluationResult.findOne({ sessionId, cmsId });
+    if (existing && existing.status === 'evaluating') {
+      return res.json({ success: true, message: 'Evaluation already in progress' });
+    }
+
+    // Create/update evaluation record
+    await EvaluationResult.findOneAndUpdate(
+      { sessionId, cmsId },
+      {
+        sessionId,
+        paperId: paper._id,
+        teacherId: teacherId,
+        cmsId,
+        studentName,
+        section: ocrResults.section || studentInfo?.section || '',
+        courseCode: ocrResults.courseCode || studentInfo?.courseCode || '',
+        status: 'evaluating',
+        totalMarks: paper.totalMarks || 0,
+        questions: [],
+        errorMessage: null
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, message: 'Internal evaluation triggered' });
+
+    try {
+      const port = process.env.PORT || 5000;
+      console.log(`Internal evaluation triggered for ${cmsId} in ${sessionId}`);
+    } catch (err) {
+      console.error('Internal eval trigger error:', err);
+    }
+  } catch (error) {
+    console.error('Internal evaluation error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.use("/api/papers", paperRoutes);
 app.use("/api/student-tables", studentTableRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/answer-sheets", answerSheetRoutes);
+app.use("/api/student-copies", studentCopyRoutes);
+app.use("/api/ocr", ocrRoutes);
+app.use("/api/evaluation", evaluationRoutes);
+app.use("/api/auth", authRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
