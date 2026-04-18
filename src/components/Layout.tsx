@@ -8,9 +8,11 @@ type Props = {
 	children: React.ReactNode;
 	activePage?: string;
 	onPageChange?: (page: string) => void;
+	teacherName?: string;
+	onLogout?: () => void;
 };
 
-export default function Layout({ children, activePage, onPageChange }: Props) {
+export default function Layout({ children, activePage, onPageChange, teacherName, onLogout }: Props) {
 	const [sidebarOpen, setSidebarOpen] = useState(true);
 
 	return (
@@ -18,6 +20,8 @@ export default function Layout({ children, activePage, onPageChange }: Props) {
 			<Header
 				onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
 				onPageChange={onPageChange}
+				teacherName={teacherName}
+				onLogout={onLogout}
 			/>
 			<div className={styles.layoutContent}>
 				<Sidebar

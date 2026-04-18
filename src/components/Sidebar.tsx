@@ -10,9 +10,9 @@ type Props = {
 export default function Sidebar({ isOpen, activePage = 'dashboard', onPageChange }: Props) {
 	const menuItems = [
 		{ id: 'dashboard', label: 'Dashboard', icon: '📊' },
-		{ id: 'upload-question-papers', label: 'Upload Question Papers', icon: '📄' },
-		{ id: 'download-answer-sheets', label: 'Download Answer Sheets', icon: '📥' },
-		{ id: 'upload-answer-sheets', label: 'Upload Answer Sheets', icon: '📝' },
+		{ id: 'upload-question-papers', label: 'Create', icon: '📄' },
+		{ id: 'download-answer-sheets', label: 'Download', icon: '📥' },
+		{ id: 'upload-answer-sheets', label: 'Evaluate', icon: '📝' },
 		{ id: 'student-copies', label: 'Student Copies', icon: '📑' },
 		{ id: 'student-reports', label: 'Student Reports', icon: '📈' },
 		{ id: 'settings', label: 'Settings', icon: '⚙️' }
