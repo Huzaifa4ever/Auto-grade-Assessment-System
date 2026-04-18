@@ -1,11 +1,142 @@
 const API_BASE_URL = 'http://localhost:5000/api/papers';
 const STUDENT_TABLE_API_BASE_URL = 'http://localhost:5000/api/student-tables';
 const ANSWER_SHEET_API_BASE_URL = 'http://localhost:5000/api/answer-sheets';
+const AUTH_API_BASE_URL = 'http://localhost:5000/api/auth';
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
+}
 
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  teacher: { name: string; email: string; userId: string };
+}
+
+export async function signup(name: string, email: string, userId: string, password: string): Promise<ApiResponse<AuthResponse>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, userId, password }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      return { success: false, error: data.error || 'Signup failed' };
+    }
+    return { success: true, data: { token: data.token, teacher: data.teacher } };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Signup failed' };
+  }
+}
+
+export async function login(userId: string, password: string): Promise<ApiResponse<AuthResponse>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, password }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      return { success: false, error: data.error || 'Login failed' };
+    }
+    return { success: true, data: { token: data.token, teacher: data.teacher } };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Login failed' };
+  }
+}
+
+export async function getMe(token: string): Promise<ApiResponse<{ name: string; email: string; userId: string }>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      return { success: false, error: data.error || 'Session expired' };
+    }
+    return { success: true, data: data.teacher };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to verify session' };
+  }
+}
+
+export async function forgotPassword(email: string): Promise<ApiResponse<{ message: string; devCode?: string }>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      return { success: false, error: data.error || 'Failed to send reset code' };
+    }
+    return { success: true, data: { message: data.message, devCode: data.devCode } };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to send reset code' };
+  }
+}
+
+export async function resetPassword(email: string, code: string, newPassword: string): Promise<ApiResponse<{ message: string }>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      return { success: false, error: data.error || 'Failed to reset password' };
+    }
+    return { success: true, data: { message: data.message } };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to reset password' };
+  }
+}
+
+export interface UpdateProfileData {
+  name: string;
+  email: string;
+  userId: string;
+  currentPassword: string;
+  newPassword?: string;
+}
+
+export interface UpdateProfileResponse {
+  message: string;
+  token: string;
+  teacher: { name: string; email: string; userId: string };
+}
+
+export async function updateProfile(data: UpdateProfileData): Promise<ApiResponse<UpdateProfileResponse>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/update-profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+      },
+      body: JSON.stringify(data),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || 'Failed to update profile' };
+    }
+    return { success: true, data: { message: result.message, token: result.token, teacher: result.teacher } };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to update profile' };
+  }
 }
 
 export interface Student {
@@ -28,6 +159,7 @@ export async function savePaper(paperData: any): Promise<ApiResponse<any>> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify(paperData),
     });
@@ -49,7 +181,9 @@ export async function savePaper(paperData: any): Promise<ApiResponse<any>> {
 
 export async function getAllPapers(): Promise<ApiResponse<any[]>> {
   try {
-    const response = await fetch(`${API_BASE_URL}/`);
+    const response = await fetch(`${API_BASE_URL}/`, {
+      headers: { ...authHeaders() },
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -76,6 +210,7 @@ export async function uploadStudentTable(payload: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify(payload),
     });
@@ -97,7 +232,9 @@ export async function uploadStudentTable(payload: {
 
 export async function getStudentTables(): Promise<ApiResponse<StudentTable[]>> {
   try {
-    const response = await fetch(`${STUDENT_TABLE_API_BASE_URL}/`);
+    const response = await fetch(`${STUDENT_TABLE_API_BASE_URL}/`, {
+      headers: { ...authHeaders() },
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -120,6 +257,7 @@ export async function parsePdfTextWithGemini(extractedText: string): Promise<Api
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify({ extractedText }),
     });
@@ -298,6 +436,7 @@ export async function processAnswerSheets(
 
     const response = await fetch(`${ANSWER_SHEET_API_BASE_URL}/process`, {
       method: 'POST',
+      headers: { ...authHeaders() },
       body: formData,
     });
 
@@ -319,7 +458,9 @@ export async function processAnswerSheets(
 
 export async function getAnswerSheetSessions(): Promise<ApiResponse<SessionData[]>> {
   try {
-    const response = await fetch(`${ANSWER_SHEET_API_BASE_URL}/sessions`);
+    const response = await fetch(`${ANSWER_SHEET_API_BASE_URL}/sessions`, {
+      headers: { ...authHeaders() },
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -340,6 +481,7 @@ export async function deleteAnswerSheetSession(sessionId: string): Promise<ApiRe
   try {
     const response = await fetch(`${ANSWER_SHEET_API_BASE_URL}/sessions/${sessionId}`, {
       method: 'DELETE',
+      headers: { ...authHeaders() },
     });
 
     if (!response.ok) {
@@ -361,6 +503,7 @@ export async function clearAllAnswerSheets(): Promise<ApiResponse<any>> {
   try {
     const response = await fetch(`${ANSWER_SHEET_API_BASE_URL}/clear-all`, {
       method: 'DELETE',
+      headers: { ...authHeaders() },
     });
 
     if (!response.ok) {
@@ -428,7 +571,9 @@ export function getStudentPdfUrl(sessionId: string, cmsId: string): string {
 
 export async function getStudentCopies(): Promise<ApiResponse<StudentCopySession[]>> {
   try {
-    const response = await fetch(`${STUDENT_COPY_API_BASE_URL}/`);
+    const response = await fetch(`${STUDENT_COPY_API_BASE_URL}/`, {
+      headers: { ...authHeaders() },
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -449,6 +594,7 @@ export async function deleteStudentCopySession(sessionId: string): Promise<ApiRe
   try {
     const response = await fetch(`${STUDENT_COPY_API_BASE_URL}/${sessionId}`, {
       method: 'DELETE',
+      headers: { ...authHeaders() },
     });
 
     if (!response.ok) {
@@ -473,7 +619,10 @@ export async function deleteStudentFromSession(
   try {
     const response = await fetch(
       `${STUDENT_COPY_API_BASE_URL}/${sessionId}/students/${encodeURIComponent(cmsId)}`,
-      { method: 'DELETE' }
+      {
+        method: 'DELETE',
+        headers: { ...authHeaders() },
+      }
     );
 
     if (!response.ok) {
@@ -495,6 +644,7 @@ export async function clearAllStudentCopies(): Promise<ApiResponse<any>> {
   try {
     const response = await fetch(`${STUDENT_COPY_API_BASE_URL}/`, {
       method: 'DELETE',
+      headers: { ...authHeaders() },
     });
 
     if (!response.ok) {
@@ -508,6 +658,177 @@ export async function clearAllStudentCopies(): Promise<ApiResponse<any>> {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to clear student copies',
+    };
+  }
+}
+
+// ============================================================
+// Evaluation API
+// ============================================================
+const EVALUATION_API_BASE_URL = 'http://localhost:5000/api/evaluation';
+
+export interface QuestionResult {
+  questionKey: string;
+  questionText: string;
+  maxMarks: number;
+  obtainedMarks: number;
+  feedback: string;
+  studentAnswer: string;
+  rubrics: string[];
+  edited: boolean;
+  ocrConfidence: number;
+  llmConfidence: number;
+}
+
+export interface EvaluationResultData {
+  _id: string;
+  sessionId: string;
+  paperId: string;
+  cmsId: string;
+  studentName: string;
+  section: string;
+  courseCode: string;
+  status: 'pending' | 'evaluating' | 'completed' | 'error';
+  totalMarks: number;
+  obtainedMarks: number;
+  questions: QuestionResult[];
+  ocrAccuracy: number;
+  llmAccuracy: number;
+  errorMessage?: string;
+  evaluatedAt?: string;
+  editedAt?: string;
+}
+
+export interface EvaluationSession {
+  sessionId: string;
+  courseCode: string;
+  section: string;
+  totalStudents: number;
+  completedStudents: number;
+  avgScore: number;
+  totalMarks: number;
+  avgOcrAccuracy: number;
+  avgLlmAccuracy: number;
+  updatedAt: string;
+}
+
+export async function getEvaluationSessions(): Promise<ApiResponse<EvaluationSession[]>> {
+  try {
+    const response = await fetch(`${EVALUATION_API_BASE_URL}/sessions`, {
+      headers: { ...authHeaders() },
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data: data.sessions };
+  } catch (error) {
+    console.error('Error fetching evaluation sessions:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch evaluation sessions',
+    };
+  }
+}
+
+export async function getEvaluationResults(sessionId: string): Promise<ApiResponse<EvaluationResultData[]>> {
+  try {
+    const response = await fetch(`${EVALUATION_API_BASE_URL}/results/${sessionId}`, {
+      headers: { ...authHeaders() },
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data: data.results };
+  } catch (error) {
+    console.error('Error fetching evaluation results:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch evaluation results',
+    };
+  }
+}
+
+export async function getEvaluationResult(sessionId: string, cmsId: string): Promise<ApiResponse<EvaluationResultData>> {
+  try {
+    const response = await fetch(`${EVALUATION_API_BASE_URL}/result/${sessionId}/${encodeURIComponent(cmsId)}`, {
+      headers: { ...authHeaders() },
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data: data.result };
+  } catch (error) {
+    console.error('Error fetching evaluation result:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch evaluation result',
+    };
+  }
+}
+
+export async function updateEvaluationResult(
+  sessionId: string,
+  cmsId: string,
+  questions: { questionKey: string; obtainedMarks?: number; feedback?: string }[]
+): Promise<ApiResponse<EvaluationResultData>> {
+  try {
+    const response = await fetch(`${EVALUATION_API_BASE_URL}/result/${sessionId}/${encodeURIComponent(cmsId)}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+      },
+      body: JSON.stringify({ questions }),
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data: data.result };
+  } catch (error) {
+    console.error('Error updating evaluation result:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update evaluation result',
+    };
+  }
+}
+
+export async function triggerEvaluation(sessionId: string, cmsId: string): Promise<ApiResponse<any>> {
+  try {
+    const response = await fetch(`${EVALUATION_API_BASE_URL}/evaluate/${sessionId}/${encodeURIComponent(cmsId)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+      },
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error triggering evaluation:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to trigger evaluation',
+    };
+  }
+}
+
+export interface DashboardStats {
+  totalEvaluated: number;
+  avgOcrAccuracy: number;
+  avgLlmAccuracy: number;
+}
+
+export async function getDashboardStats(): Promise<ApiResponse<DashboardStats>> {
+  try {
+    const response = await fetch(`${EVALUATION_API_BASE_URL}/dashboard-stats`, {
+      headers: { ...authHeaders() },
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data: data.stats };
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch dashboard stats',
     };
   }
 }

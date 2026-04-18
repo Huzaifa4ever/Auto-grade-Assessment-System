@@ -18,6 +18,7 @@ interface AnswerSheetData {
 
 interface QRCodeData {
 	studentCmsId: string;
+	studentName: string;
 	section: string;
 	courseCode: string;
 	questionLabel?: string;
@@ -40,6 +41,7 @@ function abbreviateCourseName(courseName: string): string {
 function generateQRData(data: QRCodeData): string {
 	return JSON.stringify({
 		cmsId: data.studentCmsId,
+		n: data.studentName,
 		s: data.section,
 		c: data.courseCode,
 		q: data.questionLabel || '',
@@ -190,6 +192,7 @@ async function addCoverPage(doc: jsPDF, data: AnswerSheetData, totalPages: numbe
 
 	const qrData: QRCodeData = {
 		studentCmsId: data.student.cmsId,
+		studentName: data.student.name,
 		courseCode: data.courseCode || '',
 		section: data.section,
 		pageNumber: 0,
@@ -324,6 +327,7 @@ async function addQuestionPages(
 			doc.addPage();
 			const qrData: QRCodeData = {
 				studentCmsId: data.student.cmsId,
+				studentName: data.student.name,
 				courseCode: data.courseCode || '',
 				section: data.section,
 				questionLabel: question.label,
@@ -376,6 +380,7 @@ async function addQuestionPages(
 				doc.addPage();
 				const qrDataMulti: QRCodeData = {
 					studentCmsId: data.student.cmsId,
+					studentName: data.student.name,
 					courseCode: data.courseCode || '',
 					section: data.section,
 					questionLabel: question.label,
@@ -417,6 +422,7 @@ async function addQuestionPages(
 
 				const qrDataPart: QRCodeData = {
 					studentCmsId: data.student.cmsId,
+					studentName: data.student.name,
 					courseCode: data.courseCode || '',
 					section: data.section,
 					questionLabel: question.label,
@@ -470,6 +476,7 @@ async function addQuestionPages(
 					doc.addPage();
 					const qrDataPartMulti: QRCodeData = {
 						studentCmsId: data.student.cmsId,
+						studentName: data.student.name,
 						courseCode: data.courseCode || '',
 						section: data.section,
 						questionLabel: question.label,
@@ -513,6 +520,7 @@ async function addQuestionPages(
 
 				const qrDataSubPart: QRCodeData = {
 					studentCmsId: data.student.cmsId,
+					studentName: data.student.name,
 					courseCode: data.courseCode || '',
 					section: data.section,
 					questionLabel: question.label,
