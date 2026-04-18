@@ -31,6 +31,7 @@ export const uploadStudentTable = async (req, res) => {
       name,
       originalFileName,
       students: normalizedStudents,
+      teacherId: req.teacherId,
     });
     const saved = await table.save();
     res.status(201).json(saved);
@@ -41,7 +42,7 @@ export const uploadStudentTable = async (req, res) => {
 
 export const getStudentTables = async (req, res) => {
   try {
-    const files = await StudentTable.find().sort({ createdAt: -1 });
+    const files = await StudentTable.find({ teacherId: req.teacherId }).sort({ createdAt: -1 });
     res.json(files);
   } catch (error) {
     res.status(500).json({ message: error.message });

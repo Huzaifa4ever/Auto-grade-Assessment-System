@@ -10,6 +10,7 @@ const studentTableSchema = new mongoose.Schema(
     name: { type: String, required: true },
     originalFileName: { type: String },
     students: [studentSchema],
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
   },
   {
     timestamps: true,
