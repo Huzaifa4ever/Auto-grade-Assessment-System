@@ -33,7 +33,6 @@ const questionSchema = new mongoose.Schema({
   pages: Number,
   parts: [partSchema]
 });
-partSchema
 const paperSchema = new mongoose.Schema({
   name: String,
   rawText: String,
@@ -46,7 +45,8 @@ const paperSchema = new mongoose.Schema({
   courseCode: String,
   instructor: String,
   section: String,
-  studentTableId: String
+  studentTableId: String,
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' }
 });
 
 const Paper = mongoose.model("Paper", paperSchema);

@@ -2,6 +2,7 @@ import Paper from "../models/Paper.js";
 
 export const savePaper = async (req, res) => {
   try {
+    req.body.teacherId = req.teacherId;
     const paper = new Paper(req.body);
     const saved = await paper.save();
     res.status(201).json(saved);
@@ -12,7 +13,7 @@ export const savePaper = async (req, res) => {
 
 export const getAllPapers = async (req, res) => {
   try {
-    const papers = await Paper.find();
+    const papers = await Paper.find({ teacherId: req.teacherId });
     res.json(papers);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -21,7 +22,7 @@ export const getAllPapers = async (req, res) => {
 
 export const getPaperById = async (req, res) => {
   try {
-    const paper = await Paper.findById(req.params.id);
+    const paper = await Paper.findOne({ _id: req.params.id, teacherId: req.teacherId });
     if (!paper) {
       return res.status(404).json({ message: 'Paper not found' });
     }
