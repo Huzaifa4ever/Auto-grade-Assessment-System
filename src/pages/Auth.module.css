@@ -1,0 +1,250 @@
+.authPage {
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0fdf4 100%);
+	padding: 24px;
+}
+
+.authCard {
+	background: #ffffff;
+	border-radius: 20px;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.05);
+	padding: 40px;
+	width: 100%;
+	max-width: 440px;
+	animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+	from {
+		opacity: 0;
+		transform: translateY(20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.authHeader {
+	text-align: center;
+	margin-bottom: 32px;
+}
+
+.authLogo {
+	font-size: 48px;
+	margin-bottom: 12px;
+}
+
+.authTitle {
+	margin: 0 0 8px;
+	font-size: 1.6rem;
+	font-weight: 700;
+	color: #1e293b;
+}
+
+.authSubtitle {
+	margin: 0;
+	font-size: 0.9rem;
+	color: #64748b;
+}
+
+.formGroup {
+	margin-bottom: 20px;
+}
+
+.formLabel {
+	display: block;
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: #374151;
+	margin-bottom: 6px;
+}
+
+.formInput {
+	width: 100%;
+	padding: 12px 16px;
+	border: 2px solid #e2e8f0;
+	border-radius: 10px;
+	font-size: 0.95rem;
+	color: #1e293b;
+	background: #f8fafc;
+	outline: none;
+	transition: all 0.2s;
+	box-sizing: border-box;
+}
+
+.formInput:focus {
+	border-color: #3b82f6;
+	background: #fff;
+	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.formInput::placeholder {
+	color: #94a3b8;
+}
+
+.formHint {
+	font-size: 0.75rem;
+	color: #94a3b8;
+	margin-top: 4px;
+}
+
+.submitBtn {
+	width: 100%;
+	padding: 14px;
+	background: linear-gradient(135deg, #198754, #20c997);
+	color: #fff;
+	border: none;
+	border-radius: 10px;
+	font-size: 1rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s;
+	margin-top: 8px;
+}
+
+.submitBtn:hover:not(:disabled) {
+	transform: translateY(-2px);
+	box-shadow: 0 6px 20px rgba(25, 135, 84, 0.3);
+}
+
+.submitBtn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.errorMsg {
+	padding: 10px 14px;
+	background: #fef2f2;
+	border: 1px solid #fecaca;
+	border-radius: 8px;
+	color: #dc2626;
+	font-size: 0.85rem;
+	margin-bottom: 16px;
+	animation: slideUp 0.2s ease;
+}
+
+.successMsg {
+	padding: 10px 14px;
+	background: #f0fdf4;
+	border: 1px solid #bbf7d0;
+	border-radius: 8px;
+	color: #16a34a;
+	font-size: 0.85rem;
+	margin-bottom: 16px;
+	animation: slideUp 0.2s ease;
+}
+
+.authFooter {
+	text-align: center;
+	margin-top: 24px;
+	font-size: 0.9rem;
+	color: #64748b;
+}
+
+.authLink {
+	color: #3b82f6;
+	font-weight: 600;
+	cursor: pointer;
+	background: none;
+	border: none;
+	font-size: inherit;
+	padding: 0;
+	text-decoration: none;
+	transition: color 0.2s;
+}
+
+.authLink:hover {
+	color: #1d4ed8;
+	text-decoration: underline;
+}
+
+.forgotLink {
+	display: block;
+	text-align: right;
+	margin-top: -12px;
+	margin-bottom: 20px;
+}
+
+.stepIndicator {
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	margin-bottom: 24px;
+}
+
+.stepDot {
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: #e2e8f0;
+	transition: all 0.3s;
+}
+
+.stepDot.active {
+	background: #3b82f6;
+	transform: scale(1.2);
+}
+
+.codeInputGroup {
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	margin-bottom: 20px;
+}
+
+.codeInput {
+	width: 100%;
+	padding: 14px;
+	border: 2px solid #e2e8f0;
+	border-radius: 10px;
+	font-size: 1.5rem;
+	text-align: center;
+	letter-spacing: 8px;
+	font-weight: 700;
+	outline: none;
+	transition: border-color 0.2s;
+	box-sizing: border-box;
+}
+
+.codeInput:focus {
+	border-color: #3b82f6;
+	box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.devCode {
+	padding: 10px 14px;
+	background: #fefce8;
+	border: 1px solid #fde68a;
+	border-radius: 8px;
+	color: #92400e;
+	font-size: 0.82rem;
+	margin-bottom: 16px;
+	text-align: center;
+}
+
+.devCode strong {
+	font-size: 1.1rem;
+	letter-spacing: 4px;
+}
+
+.backBtn {
+	background: none;
+	border: none;
+	color: #64748b;
+	cursor: pointer;
+	font-size: 0.85rem;
+	padding: 0;
+	margin-bottom: 16px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	transition: color 0.2s;
+}
+
+.backBtn:hover {
+	color: #1e293b;
+}

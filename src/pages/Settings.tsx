@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Course } from '../types';
-import { getCourses, createCourse, updateCourse, deleteCourse } from '../services/api';
+import { getCourses, createCourse, updateCourse, deleteCourse, getMe, updateProfile } from '../services/api';
 import styles from './Settings.module.css';
 
-export default function Settings() {
+type Props = {
+	onProfileUpdate?: (name: string, token: string) => void;
+};
+
+export default function Settings({ onProfileUpdate }: Props) {
 	const [courses, setCourses] = useState<Course[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -22,8 +26,22 @@ export default function Settings() {
 	const [formError, setFormError] = useState('');
 	const [saving, setSaving] = useState(false);
 
+	// Profile state
+	const [profileData, setProfileData] = useState({
+		name: '',
+		email: '',
+		userId: '',
+		currentPassword: '',
+		newPassword: ''
+	});
+	const [profileLoading, setProfileLoading] = useState(true);
+	const [profileError, setProfileError] = useState('');
+	const [profileSuccess, setProfileSuccess] = useState('');
+	const [profileSaving, setProfileSaving] = useState(false);
+
 	useEffect(() => {
 		loadCourses();
+		loadProfile();
 	}, []);
 
 	async function loadCourses() {
@@ -43,6 +61,66 @@ export default function Settings() {
 		course.courseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
 		course.department.toLowerCase().includes(searchTerm.toLowerCase())
 	);
+
+	async function loadProfile() {
+		setProfileLoading(true);
+		const token = localStorage.getItem('authToken');
+		if (token) {
+			const res = await getMe(token);
+			if (res.success && res.data) {
+				setProfileData(prev => ({
+					...prev,
+					name: res.data!.name,
+					email: res.data!.email,
+					userId: res.data!.userId
+				}));
+			}
+		}
+		setProfileLoading(false);
+	}
+
+	async function handleProfileSave(e: React.FormEvent) {
+		e.preventDefault();
+		setProfileError('');
+		setProfileSuccess('');
+
+		if (!profileData.name.trim() || !profileData.email.trim() || !profileData.userId.trim()) {
+			setProfileError('Name, email, and User ID are required');
+			return;
+		}
+
+		if (!profileData.currentPassword) {
+			setProfileError('Enter your current password to save changes');
+			return;
+		}
+
+		if (profileData.newPassword && profileData.newPassword.length < 5) {
+			setProfileError('New password must be at least 5 characters');
+			return;
+		}
+
+		setProfileSaving(true);
+		const res = await updateProfile({
+			name: profileData.name.trim(),
+			email: profileData.email.trim(),
+			userId: profileData.userId.trim(),
+			currentPassword: profileData.currentPassword,
+			newPassword: profileData.newPassword || undefined
+		});
+		setProfileSaving(false);
+
+		if (res.success && res.data) {
+			setProfileSuccess('Profile updated successfully!');
+			setProfileData(prev => ({ ...prev, currentPassword: '', newPassword: '' }));
+			// Update token and name in app
+			localStorage.setItem('authToken', res.data.token);
+			localStorage.setItem('teacherName', res.data.teacher.name);
+			onProfileUpdate?.(res.data.teacher.name, res.data.token);
+			setTimeout(() => setProfileSuccess(''), 3000);
+		} else {
+			setProfileError(res.error || 'Failed to update profile');
+		}
+	}
 
 	function handleAddClick() {
 		setFormData({ courseCode: '', courseName: '', department: '' });
@@ -145,7 +223,83 @@ export default function Settings() {
 		<div className={styles.page}>
 			<div className={styles.pageHeader}>
 				<h2>Settings</h2>
-				<p>Configure system settings and manage courses</p>
+				<p>Manage your profile and system settings</p>
+			</div>
+
+			{/* Profile Management */}
+			<div className="card" style={{ marginBottom: 24 }}>
+				<div className={styles.sectionHeader}>
+					<div>
+						<h3>👤 Profile Management</h3>
+						<p className="small">Update your profile information</p>
+					</div>
+				</div>
+
+				{profileLoading ? (
+					<div className={styles.loading}>Loading profile...</div>
+				) : (
+					<form onSubmit={handleProfileSave}>
+						{profileError && <div className={styles.formError}>{profileError}</div>}
+						{profileSuccess && <div className={styles.formSuccess}>{profileSuccess}</div>}
+
+						<div className={styles.profileGrid}>
+							<div className={styles.formField}>
+								<label>Full Name</label>
+								<input
+									type="text"
+									value={profileData.name}
+									onChange={e => setProfileData({ ...profileData, name: e.target.value })}
+									placeholder="Your full name"
+								/>
+							</div>
+
+							<div className={styles.formField}>
+								<label>Email</label>
+								<input
+									type="email"
+									value={profileData.email}
+									onChange={e => setProfileData({ ...profileData, email: e.target.value })}
+									placeholder="your@email.com"
+								/>
+							</div>
+
+							<div className={styles.formField}>
+								<label>User ID</label>
+								<input
+									type="text"
+									value={profileData.userId}
+									onChange={e => setProfileData({ ...profileData, userId: e.target.value })}
+									placeholder="Your User ID"
+								/>
+							</div>
+
+							<div className={styles.formField}>
+								<label>New Password <span className="small" style={{ fontWeight: 400, color: '#94a3b8' }}>(leave blank to keep current)</span></label>
+								<input
+									type="password"
+									value={profileData.newPassword}
+									onChange={e => setProfileData({ ...profileData, newPassword: e.target.value })}
+									placeholder="Min 5 characters"
+								/>
+							</div>
+						</div>
+
+						<div className={styles.profileSaveRow}>
+							<div className={styles.formField} style={{ flex: 1, marginBottom: 0 }}>
+								<label>Current Password <span style={{ color: 'red' }}>*</span></label>
+								<input
+									type="password"
+									value={profileData.currentPassword}
+									onChange={e => setProfileData({ ...profileData, currentPassword: e.target.value })}
+									placeholder="Required to save changes"
+								/>
+							</div>
+							<button type="submit" className="button" disabled={profileSaving} style={{ alignSelf: 'flex-end' }}>
+								{profileSaving ? 'Saving...' : '💾 Save Changes'}
+							</button>
+						</div>
+					</form>
+				)}
 			</div>
 
 			<div className="card" style={{ marginBottom: 24 }}>

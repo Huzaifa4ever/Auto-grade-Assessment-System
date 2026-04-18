@@ -1,11 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import styles from './Dashboard.module.css';
+import { getDashboardStats, DashboardStats } from '../services/api';
 
 type Props = {
 	onNavigate?: (page: string) => void;
 };
 
 export default function Dashboard({ onNavigate }: Props) {
+	const [stats, setStats] = useState<DashboardStats | null>(null);
+
+	useEffect(() => {
+		loadStats();
+	}, []);
+
+	const loadStats = async () => {
+		const res = await getDashboardStats();
+		if (res.success && res.data) {
+			setStats(res.data);
+		}
+	};
+
 	const handleCardClick = (page: string) => {
 		onNavigate?.(page);
 	};
@@ -15,6 +29,39 @@ export default function Dashboard({ onNavigate }: Props) {
 			<div className={styles.pageHeader}>
 				<h2>Dashboard</h2>
 				<p>Welcome to the Auto Grade System - Manage your exams and grading workflow</p>
+			</div>
+
+			{/* Stats Section */}
+			<div className={styles.statsSection}>
+				<div className={styles.statCard}>
+					<div className={styles.statIcon}>📊</div>
+					<div className={styles.statContent}>
+						<div className={styles.statValue}>
+							{stats ? stats.totalEvaluated : '—'}
+						</div>
+						<div className={styles.statLabel}>Evaluated Submissions</div>
+					</div>
+				</div>
+
+				<div className={styles.statCard}>
+					<div className={styles.statIcon}>🔍</div>
+					<div className={styles.statContent}>
+						<div className={styles.statValue}>
+							{stats ? `${stats.avgOcrAccuracy}%` : '—'}
+						</div>
+						<div className={styles.statLabel}>Avg OCR Accuracy</div>
+					</div>
+				</div>
+
+				<div className={styles.statCard}>
+					<div className={styles.statIcon}>🤖</div>
+					<div className={styles.statContent}>
+						<div className={styles.statValue}>
+							{stats ? `${stats.avgLlmAccuracy}%` : '—'}
+						</div>
+						<div className={styles.statLabel}>Avg LLM Confidence</div>
+					</div>
+				</div>
 			</div>
 
 			<div className={styles.dashboardGrid}>
