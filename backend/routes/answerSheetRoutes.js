@@ -7,6 +7,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import StudentCopy from "../models/StudentCopy.js";
 import StudentTable from "../models/StudentCsv.js";
+import authMiddleware from "../middleware/authMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +18,7 @@ const router = express.Router();
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 100 * 1024 * 1024 // 100MB limit
+        fileSize: 100 * 1024 * 1024 // 100MB 
     },
     fileFilter: (req, file, cb) => {
         if (file.mimetype === 'application/pdf') {
@@ -30,7 +31,7 @@ const upload = multer({
 
 const PDF_PROCESSOR_URL = process.env.PDF_PROCESSOR_URL || 'http://localhost:5001';
 
-router.post('/process', upload.single('file'), async (req, res) => {
+router.post('/process', authMiddleware, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({
@@ -62,7 +63,7 @@ router.post('/process', upload.single('file'), async (req, res) => {
             // Save to MongoDB for persistent storage
             try {
                 // Look up student names from StudentTable by CMS ID
-                const allStudentTables = await StudentTable.find({}).lean();
+                const allStudentTables = await StudentTable.find({ teacherId: req.teacherId }).lean();
                 const studentNameMap = new Map();
 
                 for (const table of allStudentTables) {
@@ -90,6 +91,7 @@ router.post('/process', upload.single('file'), async (req, res) => {
                     {
                         sessionId: result.session_id,
                         paperId: paperId || null,
+                        teacherId: req.teacherId,
                         students
                     },
                     { upsert: true, new: true }
@@ -97,9 +99,13 @@ router.post('/process', upload.single('file'), async (req, res) => {
                 console.log(`Saved session ${result.session_id} to MongoDB with ${students.filter(s => s.name).length} named students`);
 
                 try {
+                    const token = req.headers.authorization?.split(' ')[1] || '';
                     const ocrQueueResponse = await fetch(`http://localhost:${process.env.PORT || 5000}/api/ocr/queue`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
                         body: JSON.stringify({
                             sessionId: result.session_id,
                             students: students.map(s => ({ cmsId: s.cmsId }))
@@ -129,7 +135,7 @@ router.post('/process', upload.single('file'), async (req, res) => {
     }
 });
 
-router.get('/sessions', async (req, res) => {
+router.get('/sessions', authMiddleware, async (req, res) => {
     try {
         const response = await fetch(`${PDF_PROCESSOR_URL}/api/sessions`);
         const result = await response.json();
@@ -143,7 +149,7 @@ router.get('/sessions', async (req, res) => {
     }
 });
 
-router.delete('/sessions/:sessionId', async (req, res) => {
+router.delete('/sessions/:sessionId', authMiddleware, async (req, res) => {
     try {
         const { sessionId } = req.params;
         const response = await fetch(`${PDF_PROCESSOR_URL}/api/sessions/${sessionId}`, {
@@ -160,7 +166,7 @@ router.delete('/sessions/:sessionId', async (req, res) => {
     }
 });
 
-router.delete('/clear-all', async (req, res) => {
+router.delete('/clear-all', authMiddleware, async (req, res) => {
     try {
         const response = await fetch(`${PDF_PROCESSOR_URL}/api/clear-all`, {
             method: 'DELETE'
