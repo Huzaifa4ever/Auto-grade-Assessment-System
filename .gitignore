@@ -1,48 +1,14 @@
+# Dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Build output
 dist/
 build/
 .vite/
-.vscode/
-.idea/
-.env
-.env.*
-!.env.example
-logs/
-*.log
-*.log.*
-coverage/
-coverage-final.json
-*.lcov
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-*.tmp
-
-*.tsbuildinfo
-
-.vite/
-jest.config.js
-.vitest/
-*.spec.ts
-*.test.ts
-
-*.local
-*.bak
-*.orig
-
-# Backend environment files
-backend/.env
-backend/.env.local
-backend/.env.*.local
-
-# OS specific
-.DS_Store
-Thumbs.db
 
 # IDE
 .vscode/
@@ -50,23 +16,61 @@ Thumbs.db
 *.swp
 *.swo
 
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.local
+backend/.env.*.local
+.env.production
+.env.development
+
+# Logs
+logs/
+*.log
+*.log.*
+
 # Testing
 coverage/
-*.test.ts
-*.spec.ts
+coverage-final.json
+*.lcov
+jest.config.js
+.vitest/
+
+# OS specific
+.DS_Store
+Thumbs.db
 
 # Temporary files
 *.tmp
 *.temp
+*.local
+*.bak
+*.orig
 ~*
 
-# Security - API Keys and Secrets
+# TypeScript
+*.tsbuildinfo
+
+# Python virtual environment
+pdf_processor/venv/
+pdf_processor/__pycache__/
+__pycache__/
+*.pyc
+*.pyo
+
+# PDF processor debug & temp data
+pdf_processor/debug/
+pdf_processor/temp/
+
+# Security — API Keys and Secrets
 *.key
 *.pem
 *.p12
 *.pfx
-.env.production
-.env.development
+config/production.js
+config/secrets.js
 
 # Database
 *.sqlite
@@ -78,16 +82,8 @@ mongodb/
 backend/dist/
 backend/build/
 
-# Package lock files (optional - uncomment to include)
-# package-lock.json
-# backend/package-lock.json
-# yarn.lock
-
 # Large files
 *.pdf
 uploads/
 generated/
 
-# Sensitive configs
-config/production.js
-config/secrets.js
