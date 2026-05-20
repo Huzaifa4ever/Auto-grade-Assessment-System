@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import Teacher from "../models/Teacher.js";
+import Course from "../models/Course.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -10,6 +11,43 @@ dotenv.config();
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || "auto-grade-secret-key-2026";
+
+//Default courses
+const DEFAULT_COURSES = [
+    { courseCode: "CSC 103", courseName: "Programming Fundamentals", department: "Computer Science" },
+    { courseCode: "CSC 204", courseName: "Data Structures", department: "Computer Science" },
+    { courseCode: "CSC 205", courseName: "Object Oriented Programming", department: "Computer Science" },
+    { courseCode: "CSC 301", courseName: "Software Engineering", department: "Computer Science" },
+    { courseCode: "CSC 303", courseName: "Operating Systems", department: "Computer Science" },
+    { courseCode: "CSC 351", courseName: "Design and Analysis of Algorithms", department: "Computer Science" },
+    { courseCode: "CSC 402", courseName: "Artificial Intelligence", department: "Computer Science" },
+    { courseCode: "CSC 403", courseName: "Deep Learning", department: "Computer Science" },
+    { courseCode: "CSC 404", courseName: "Machine Learning", department: "Computer Science" },
+    { courseCode: "CSC 450", courseName: "Database Management Systems", department: "Computer Science" },
+    { courseCode: "ECO 101", courseName: "Principles of Economics", department: "Economics" },
+    { courseCode: "ENG 101", courseName: "Communication and Presentation Skills", department: "Management" },
+    { courseCode: "ENG 201", courseName: "Technical Writing", department: "English" },
+    { courseCode: "MGT 101", courseName: "Principles of Management", department: "Management" },
+    { courseCode: "MGT 250", courseName: "Organizational Behavior", department: "Business" },
+    { courseCode: "MTS 102", courseName: "Discrete Mathematics", department: "Mathematics" },
+    { courseCode: "MTS 110", courseName: "Linear Algebra", department: "Mathematics" },
+    { courseCode: "MTS 201", courseName: "Multivariate Calculus", department: "Mathematics" },
+    { courseCode: "MTS 203", courseName: "Probability and Statistics", department: "Mathematics" },
+    { courseCode: "PHY 150", courseName: "Applied Physics", department: "Physics" },
+    { courseCode: "SST 201", courseName: "International Relations", department: "Social Sciences" },
+    { courseCode: "SWE 302", courseName: "Software Requirements Engineering", department: "Software Engineering" },
+];
+
+async function seedDefaultCourses(teacherId) {
+    try {
+        const courseDocs = DEFAULT_COURSES.map(c => ({ ...c, teacherId }));
+        await Course.insertMany(courseDocs);
+        console.log(`Seeded ${courseDocs.length} default courses for teacher ${teacherId}`);
+    } catch (err) {
+
+        console.error('Failed to seed default courses:', err.message);
+    }
+}
 
 function createTransporter() {
     return nodemailer.createTransport({
@@ -55,6 +93,8 @@ router.post('/signup', express.json(), async (req, res) => {
         });
 
         await teacher.save();
+
+        await seedDefaultCourses(teacher._id);
 
         // Generate token
         const token = jwt.sign(

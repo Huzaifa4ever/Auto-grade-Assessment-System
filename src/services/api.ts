@@ -282,7 +282,9 @@ const COURSE_API_BASE_URL = 'http://localhost:5000/api/courses';
 
 export async function getCourses(): Promise<ApiResponse<any[]>> {
   try {
-    const response = await fetch(`${COURSE_API_BASE_URL}/`);
+    const response = await fetch(`${COURSE_API_BASE_URL}/`, {
+      headers: { ...authHeaders() },
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -301,7 +303,9 @@ export async function getCourses(): Promise<ApiResponse<any[]>> {
 
 export async function searchCourses(query: string): Promise<ApiResponse<any[]>> {
   try {
-    const response = await fetch(`${COURSE_API_BASE_URL}/search?q=${encodeURIComponent(query)}`);
+    const response = await fetch(`${COURSE_API_BASE_URL}/search?q=${encodeURIComponent(query)}`, {
+      headers: { ...authHeaders() },
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -328,6 +332,7 @@ export async function createCourse(course: {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify(course),
     });
@@ -358,6 +363,7 @@ export async function updateCourse(id: string, course: {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: JSON.stringify(course),
     });
@@ -382,6 +388,7 @@ export async function deleteCourse(id: string): Promise<ApiResponse<any>> {
   try {
     const response = await fetch(`${COURSE_API_BASE_URL}/${id}`, {
       method: 'DELETE',
+      headers: { ...authHeaders() },
     });
 
     if (!response.ok) {

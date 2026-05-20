@@ -1,11 +1,14 @@
 import express from 'express';
 import Course from '../models/Course.js';
+import authMiddleware from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+router.use(authMiddleware);
+
 router.get('/', async (req, res) => {
     try {
-        const courses = await Course.find().sort({ courseCode: 1 });
+        const courses = await Course.find({ teacherId: req.teacherId }).sort({ courseCode: 1 });
         res.json(courses);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch courses', details: error.message });
@@ -23,6 +26,7 @@ router.get('/search', async (req, res) => {
         const searchTerm = q.trim();
 
         const courses = await Course.find({
+            teacherId: req.teacherId,
             $or: [
                 { courseCode: { $regex: searchTerm, $options: 'i' } },
                 { courseName: { $regex: searchTerm, $options: 'i' } },
@@ -51,7 +55,7 @@ router.post('/', async (req, res) => {
             });
         }
 
-        const existing = await Course.findOne({ courseCode: courseCode.toUpperCase() });
+        const existing = await Course.findOne({ courseCode: courseCode.toUpperCase(), teacherId: req.teacherId });
         if (existing) {
             return res.status(400).json({ error: 'Course code already exists' });
         }
@@ -60,6 +64,7 @@ router.post('/', async (req, res) => {
             courseCode: courseCode.toUpperCase(),
             courseName,
             department,
+            teacherId: req.teacherId,
         });
 
         await course.save();
@@ -85,14 +90,15 @@ router.put('/:id', async (req, res) => {
 
         const existing = await Course.findOne({
             courseCode: courseCode.toUpperCase(),
+            teacherId: req.teacherId,
             _id: { $ne: req.params.id }
         });
         if (existing) {
             return res.status(400).json({ error: 'Course code already exists' });
         }
 
-        const course = await Course.findByIdAndUpdate(
-            req.params.id,
+        const course = await Course.findOneAndUpdate(
+            { _id: req.params.id, teacherId: req.teacherId },
             {
                 courseCode: courseCode.toUpperCase(),
                 courseName,
@@ -113,7 +119,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
     try {
-        const course = await Course.findByIdAndDelete(req.params.id);
+        const course = await Course.findOneAndDelete({ _id: req.params.id, teacherId: req.teacherId });
 
         if (!course) {
             return res.status(404).json({ error: 'Course not found' });

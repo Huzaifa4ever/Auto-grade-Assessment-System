@@ -4,7 +4,6 @@ const courseSchema = new mongoose.Schema({
     courseCode: {
         type: String,
         required: true,
-        unique: true,
         trim: true,
         uppercase: true,
     },
@@ -25,9 +24,16 @@ const courseSchema = new mongoose.Schema({
     level: {
         type: Number,
     },
+    teacherId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Teacher',
+        required: true,
+    },
 }, {
     timestamps: true,
 });
+
+courseSchema.index({ courseCode: 1, teacherId: 1 }, { unique: true });
 
 courseSchema.pre('save', function (next) {
     if (this.courseCode) {
