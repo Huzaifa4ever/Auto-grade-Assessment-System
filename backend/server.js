@@ -133,6 +133,96 @@ Return ONLY the JSON object now:`;
   }
 });
 
+function normalizeLabel(label) {
+  return (label || '').replace(/[()]/g, '').trim().toLowerCase();
+}
+
+function matchQuestionToPaper(questionKey, paper) {
+  if (!paper || !paper.questions) return null;
+  const parts = questionKey.split('_');
+  const qNum = parts[0];
+  const partLabel = parts.length >= 2 ? parts[1] : null;
+  const subPartLabel = parts.length >= 3 ? parts[2] : null;
+
+  const question = paper.questions.find(q => q.label === qNum || q.id === qNum);
+  if (!question) return null;
+
+  if (!partLabel) {
+    return { questionText: question.text || '', maxMarks: question.marks || 0, rubrics: (question.rubrics || []).map(r => r.text).filter(Boolean) };
+  }
+
+  const part = (question.parts || []).find(p => normalizeLabel(p.label) === partLabel.toLowerCase() || p.id === partLabel);
+  if (!part) {
+    return { questionText: question.text || '', maxMarks: question.marks || 0, rubrics: (question.rubrics || []).map(r => r.text).filter(Boolean) };
+  }
+
+  if (!subPartLabel) {
+    return { questionText: part.text || question.text || '', maxMarks: part.marks || 0, rubrics: (part.rubrics || []).map(r => r.text).filter(Boolean) };
+  }
+
+  const subPart = (part.subParts || []).find(sp => normalizeLabel(sp.label) === subPartLabel.toLowerCase() || sp.id === subPartLabel);
+  if (!subPart) {
+    return { questionText: part.text || '', maxMarks: part.marks || 0, rubrics: (part.rubrics || []).map(r => r.text).filter(Boolean) };
+  }
+
+  return { questionText: subPart.text || part.text || '', maxMarks: subPart.marks || 0, rubrics: (subPart.rubrics || []).map(r => r.text).filter(Boolean) };
+}
+
+async function evaluateWithLLMInternal(questionText, maxMarks, rubrics, studentAnswer) {
+  const rubricsText = rubrics.length > 0
+    ? rubrics.map((r, i) => `${i + 1}. ${r}`).join('\n')
+    : 'No specific rubrics provided. Grade based on correctness and completeness.';
+
+  const prompt = `You are an expert exam evaluator. Grade this student's handwritten answer that was extracted using OCR (Optical Character Recognition).
+
+Question: ${questionText}
+Maximum Marks: ${maxMarks}
+Marking Rubrics:
+${rubricsText}
+
+Student's Answer (OCR-extracted text from handwriting):
+${studentAnswer}
+
+Evaluate the student's answer and return ONLY a valid JSON object in this exact format:
+{"marks": <number>, "feedback": "<string>", "confidence": <number>, "ocr_quality": <number>}
+
+Rules:
+- "marks" must be a number between 0 and ${maxMarks}
+- "marks" can be a decimal (e.g., 1.5, 2.5) if appropriate
+- "feedback" should explain what the student got right and wrong
+- "confidence" must be a number between 0 and 100 indicating how confident you are in your grading
+- "ocr_quality" must be a number between 0 and 100 indicating how well the OCR seems to have extracted the handwritten text
+- Be fair but strict according to the rubrics
+- If the answer is blank or completely wrong, give 0
+- Return ONLY the JSON object, no markdown or extra text`;
+
+  try {
+    const chat = await cerebras.chat.completions.create({
+      model: "llama3.1-8b",
+      messages: [{ role: "user", content: prompt }]
+    });
+
+    let responseText = chat?.choices?.[0]?.message?.content || "";
+    responseText = responseText.trim();
+    if (responseText.startsWith("```json")) {
+      responseText = responseText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+    } else if (responseText.startsWith("```")) {
+      responseText = responseText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    }
+
+    const parsed = JSON.parse(responseText);
+    return {
+      marks: Math.min(Math.max(Number(parsed.marks) || 0, 0), maxMarks),
+      feedback: parsed.feedback || '',
+      confidence: Math.min(Math.max(Number(parsed.confidence) || 70, 0), 100),
+      ocrQuality: Math.min(Math.max(Number(parsed.ocr_quality) || 70, 0), 100)
+    };
+  } catch (err) {
+    console.error('LLM evaluation error:', err.message);
+    return { marks: 0, feedback: `Evaluation error: ${err.message}. Please grade manually.`, confidence: 0, ocrQuality: 0 };
+  }
+}
+
 app.post("/api/evaluation/evaluate-internal/:sessionId/:cmsId", async (req, res) => {
   const { sessionId, cmsId } = req.params;
 
@@ -182,13 +272,76 @@ app.post("/api/evaluation/evaluate-internal/:sessionId/:cmsId", async (req, res)
       { upsert: true, new: true }
     );
 
+    // Respond immediately so the OCR route doesn't hang
     res.json({ success: true, message: 'Internal evaluation triggered' });
 
+    // --- Actually run the LLM evaluation in the background ---
     try {
-      const port = process.env.PORT || 5000;
-      console.log(`Internal evaluation triggered for ${cmsId} in ${sessionId}`);
-    } catch (err) {
-      console.error('Internal eval trigger error:', err);
+      console.log(`Internal evaluation started for ${cmsId} in ${sessionId}`);
+      const questionResults = [];
+      const ocrQuestions = ocrResults.questions || {};
+
+      for (const [questionKey, ocrData] of Object.entries(ocrQuestions)) {
+        console.log(`  Evaluating ${cmsId} — ${questionKey}...`);
+
+        const paperMatch = matchQuestionToPaper(questionKey, paper);
+        const questionText = paperMatch?.questionText || 'Question not found in paper';
+        const maxMarks = paperMatch?.maxMarks || 0;
+        const rubrics = paperMatch?.rubrics || [];
+        const studentAnswer = ocrData.extractedText || '';
+
+        let llmResult;
+        if (studentAnswer.trim().length < 5) {
+          llmResult = { marks: 0, feedback: 'No substantial answer provided.', confidence: 0, ocrQuality: 0 };
+        } else {
+          llmResult = await evaluateWithLLMInternal(questionText, maxMarks, rubrics, studentAnswer);
+        }
+
+        questionResults.push({
+          questionKey,
+          questionText,
+          maxMarks,
+          obtainedMarks: llmResult.marks,
+          feedback: llmResult.feedback,
+          studentAnswer,
+          rubrics: rubrics,
+          edited: false,
+          ocrConfidence: llmResult.ocrQuality,
+          llmConfidence: llmResult.confidence
+        });
+
+        console.log(`  ${questionKey}: ${llmResult.marks}/${maxMarks} (OCR: ${llmResult.ocrQuality}%, LLM: ${llmResult.confidence}%)`);
+      }
+
+      // Calculate totals and save as completed
+      const obtainedMarks = questionResults.reduce((sum, q) => sum + q.obtainedMarks, 0);
+      const ocrAccuracy = questionResults.length > 0
+        ? Math.round(questionResults.reduce((s, q) => s + q.ocrConfidence, 0) / questionResults.length)
+        : 0;
+      const llmAccuracy = questionResults.length > 0
+        ? Math.round(questionResults.reduce((s, q) => s + q.llmConfidence, 0) / questionResults.length)
+        : 0;
+
+      await EvaluationResult.findOneAndUpdate(
+        { sessionId, cmsId },
+        {
+          status: 'completed',
+          questions: questionResults,
+          obtainedMarks,
+          ocrAccuracy,
+          llmAccuracy,
+          evaluatedAt: new Date()
+        }
+      );
+
+      console.log(`Evaluation complete for ${cmsId}: ${obtainedMarks}/${paper.totalMarks || 0} (OCR: ${ocrAccuracy}%, LLM: ${llmAccuracy}%)`);
+
+    } catch (evalErr) {
+      console.error(`Evaluation failed for ${cmsId}:`, evalErr);
+      await EvaluationResult.findOneAndUpdate(
+        { sessionId, cmsId },
+        { status: 'error', errorMessage: evalErr.message }
+      ).catch(() => { });
     }
   } catch (error) {
     console.error('Internal evaluation error:', error);
