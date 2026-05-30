@@ -184,7 +184,8 @@ router.get('/me', async (req, res) => {
             teacher: {
                 name: teacher.name,
                 email: teacher.email,
-                userId: teacher.userId
+                userId: teacher.userId,
+                llmModel: teacher.llmModel || 'gpt-oss-120b'
             }
         });
     } catch (error) {
@@ -377,6 +378,67 @@ router.put('/update-profile', express.json(), async (req, res) => {
             return res.status(401).json({ success: false, error: 'Invalid token' });
         }
         console.error('Update profile error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get LLM model preference
+router.get('/llm-model', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, error: 'No token provided' });
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const teacher = await Teacher.findById(decoded.id).select('llmModel');
+        if (!teacher) {
+            return res.status(404).json({ success: false, error: 'Teacher not found' });
+        }
+        res.json({ success: true, llmModel: teacher.llmModel || 'gpt-oss-120b' });
+    } catch (error) {
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ success: false, error: 'Invalid token' });
+        }
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Set LLM model preference
+router.put('/llm-model', express.json(), async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, error: 'No token provided' });
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+
+        const { llmModel } = req.body;
+        const validModels = ['gpt-oss-120b', 'zai-glm-4.7'];
+        if (!llmModel || !validModels.includes(llmModel)) {
+            return res.status(400).json({
+                success: false,
+                error: `Invalid model. Choose one of: ${validModels.join(', ')}`
+            });
+        }
+
+        const teacher = await Teacher.findByIdAndUpdate(
+            decoded.id,
+            { llmModel },
+            { new: true }
+        ).select('llmModel');
+
+        if (!teacher) {
+            return res.status(404).json({ success: false, error: 'Teacher not found' });
+        }
+
+        res.json({ success: true, llmModel: teacher.llmModel, message: 'LLM model updated successfully' });
+    } catch (error) {
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ success: false, error: 'Invalid token' });
+        }
+        console.error('Set LLM model error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

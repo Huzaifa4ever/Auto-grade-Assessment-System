@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Course } from '../types';
-import { getCourses, createCourse, updateCourse, deleteCourse, getMe, updateProfile } from '../services/api';
+import { getCourses, createCourse, updateCourse, deleteCourse, getMe, updateProfile, getLlmModel, setLlmModel } from '../services/api';
 import styles from './Settings.module.css';
 
 type Props = {
@@ -39,9 +39,17 @@ export default function Settings({ onProfileUpdate }: Props) {
 	const [profileSuccess, setProfileSuccess] = useState('');
 	const [profileSaving, setProfileSaving] = useState(false);
 
+	// LLM Model selection state
+	const [selectedModel, setSelectedModel] = useState<string>('gpt-oss-120b');
+	const [modelLoading, setModelLoading] = useState(true);
+	const [modelSaving, setModelSaving] = useState(false);
+	const [modelSuccess, setModelSuccess] = useState('');
+	const [modelError, setModelError] = useState('');
+
 	useEffect(() => {
 		loadCourses();
 		loadProfile();
+		loadLlmModel();
 	}, []);
 
 	async function loadCourses() {
@@ -126,6 +134,32 @@ export default function Settings({ onProfileUpdate }: Props) {
 		setFormData({ courseCode: '', courseName: '', department: '' });
 		setFormError('');
 		setAddModalOpen(true);
+	}
+
+	async function loadLlmModel() {
+		setModelLoading(true);
+		const res = await getLlmModel();
+		if (res.success && res.data) {
+			setSelectedModel(res.data.llmModel);
+		}
+		setModelLoading(false);
+	}
+
+	async function handleModelChange(model: string) {
+		setSelectedModel(model);
+		setModelError('');
+		setModelSuccess('');
+		setModelSaving(true);
+
+		const res = await setLlmModel(model);
+		setModelSaving(false);
+
+		if (res.success) {
+			setModelSuccess('Model updated successfully!');
+			setTimeout(() => setModelSuccess(''), 3000);
+		} else {
+			setModelError(res.error || 'Failed to update model');
+		}
 	}
 
 	function handleEditClick(course: Course) {
@@ -300,6 +334,70 @@ export default function Settings({ onProfileUpdate }: Props) {
 						</div>
 					</form>
 				)}
+			</div>
+
+			<div className="card" style={{ marginBottom: 24 }}>
+				<div className={styles.sectionHeader}>
+					<div>
+						<h3>🤖 LLM Evaluation Model</h3>
+						<p className="small">Select the AI model used for grading answer sheets</p>
+					</div>
+				</div>
+
+				{modelError && <div className={styles.formError}>{modelError}</div>}
+				{modelSuccess && <div className={styles.formSuccess}>{modelSuccess}</div>}
+
+				{modelLoading ? (
+					<div className={styles.loading}>Loading model preference...</div>
+				) : (
+					<div className={styles.modelGrid}>
+						<div
+							className={`${styles.modelCard} ${selectedModel === 'gpt-oss-120b' ? styles.modelCardActive : ''}`}
+							onClick={() => !modelSaving && handleModelChange('gpt-oss-120b')}
+						>
+							<div className={styles.modelRadio}>
+								<div className={`${styles.radioCircle} ${selectedModel === 'gpt-oss-120b' ? styles.radioActive : ''}`}>
+									{selectedModel === 'gpt-oss-120b' && <div className={styles.radioDot} />}
+								</div>
+							</div>
+							<div className={styles.modelInfo}>
+								<div className={styles.modelName}>OpenAI GPT OSS</div>
+								<div className={styles.modelId}>gpt-oss-120b</div>
+								<div className={styles.modelMeta}>
+									<span className={styles.modelBadge} style={{ background: '#dcfce7', color: '#16a34a' }}>Production</span>
+									<span className={styles.modelCtx}>65,536 ctx</span>
+								</div>
+							</div>
+						</div>
+
+						<div
+							className={`${styles.modelCard} ${selectedModel === 'zai-glm-4.7' ? styles.modelCardActive : ''}`}
+							onClick={() => !modelSaving && handleModelChange('zai-glm-4.7')}
+						>
+							<div className={styles.modelRadio}>
+								<div className={`${styles.radioCircle} ${selectedModel === 'zai-glm-4.7' ? styles.radioActive : ''}`}>
+									{selectedModel === 'zai-glm-4.7' && <div className={styles.radioDot} />}
+								</div>
+							</div>
+							<div className={styles.modelInfo}>
+								<div className={styles.modelName}>Z.ai GLM 4.7</div>
+								<div className={styles.modelId}>zai-glm-4.7</div>
+								<div className={styles.modelMeta}>
+									<span className={styles.modelBadge} style={{ background: '#fef3c7', color: '#b45309' }}>Preview</span>
+									<span className={styles.modelCtx}>64,000 ctx</span>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
+
+				{modelSaving && (
+					<div className={styles.modelSavingIndicator}>Saving model preference...</div>
+				)}
+
+				<p className="small" style={{ marginTop: 12, color: '#94a3b8' }}>
+					The selected model will be used for all future evaluations. Changing the model does not affect previously graded papers.
+				</p>
 			</div>
 
 			<div className="card" style={{ marginBottom: 24 }}>

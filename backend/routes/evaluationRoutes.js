@@ -4,6 +4,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import EvaluationResult from "../models/EvaluationResult.js";
 import StudentCopy from "../models/StudentCopy.js";
+import Teacher from "../models/Teacher.js";
 import Paper from "../models/Paper.js";
 import Cerebras from "@cerebras/cerebras_cloud_sdk";
 import dotenv from "dotenv";
@@ -21,6 +22,13 @@ const cerebras = new Cerebras({
 });
 
 const router = express.Router();
+
+const RATE_LIMIT_DELAY_MS = 13000;
+const MAX_RETRIES = 3;
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Question Matching
 
@@ -90,7 +98,7 @@ function matchQuestionToPaper(questionKey, paper) {
 
 // LLM Evaluation ,per-question 
 
-async function evaluateWithLLM(questionText, maxMarks, rubrics, studentAnswer) {
+async function evaluateWithLLM(questionText, maxMarks, rubrics, studentAnswer, modelName = 'gpt-oss-120b') {
     const rubricsText = rubrics.length > 0
         ? rubrics.map((r, i) => `${i + 1}. ${r}`).join('\n')
         : 'No specific rubrics provided. Grade based on correctness and completeness.';
@@ -129,29 +137,56 @@ Rules:
 - Return ONLY the JSON object, no markdown or extra text`;
 
     try {
-        const chat = await cerebras.chat.completions.create({
-            model: "llama3.1-8b",
-            messages: [
-                { role: "user", content: prompt }
-            ]
-        });
+        let lastError = null;
 
-        let responseText = chat?.choices?.[0]?.message?.content || "";
-        responseText = responseText.trim();
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                console.log(`  Using LLM model: ${modelName} (attempt ${attempt}/${MAX_RETRIES})`);
+                const chat = await cerebras.chat.completions.create({
+                    model: modelName,
+                    messages: [
+                        { role: "user", content: prompt }
+                    ]
+                });
 
-        if (responseText.startsWith("```json")) {
-            responseText = responseText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-        } else if (responseText.startsWith("```")) {
-            responseText = responseText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+                let responseText = chat?.choices?.[0]?.message?.content || "";
+                responseText = responseText.trim();
+
+                if (responseText.startsWith("```json")) {
+                    responseText = responseText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+                } else if (responseText.startsWith("```")) {
+                    responseText = responseText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+                }
+
+                const parsed = JSON.parse(responseText);
+                const marks = Math.min(Math.max(Number(parsed.marks) || 0, 0), maxMarks);
+                const feedback = parsed.feedback || '';
+                const confidence = Math.min(Math.max(Number(parsed.confidence) || 70, 0), 100);
+                const ocrQuality = Math.min(Math.max(Number(parsed.ocr_quality) || 70, 0), 100);
+
+                return { marks, feedback, confidence, ocrQuality };
+            } catch (err) {
+                lastError = err;
+                const is429 = err.message && (err.message.includes('429') || err.message.toLowerCase().includes('rate') || err.message.toLowerCase().includes('traffic'));
+
+                if (is429 && attempt < MAX_RETRIES) {
+                    const backoffMs = RATE_LIMIT_DELAY_MS * attempt;
+                    console.log(`  ⏳ Rate limited (429). Waiting ${backoffMs / 1000}s before retry ${attempt + 1}...`);
+                    await sleep(backoffMs);
+                } else if (!is429) {
+                    // Non-rate-limit error, don't retry
+                    break;
+                }
+            }
         }
 
-        const parsed = JSON.parse(responseText);
-        const marks = Math.min(Math.max(Number(parsed.marks) || 0, 0), maxMarks);
-        const feedback = parsed.feedback || '';
-        const confidence = Math.min(Math.max(Number(parsed.confidence) || 70, 0), 100);
-        const ocrQuality = Math.min(Math.max(Number(parsed.ocr_quality) || 70, 0), 100);
-
-        return { marks, feedback, confidence, ocrQuality };
+        console.error('LLM evaluation error after retries:', lastError?.message);
+        return {
+            marks: 0,
+            feedback: `Evaluation error: ${lastError?.message || 'Unknown error'}. Please grade manually.`,
+            confidence: 0,
+            ocrQuality: 0
+        };
     } catch (err) {
         console.error('LLM evaluation error:', err.message);
         return {
@@ -176,6 +211,11 @@ router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
             return res.status(404).json({ success: false, error: 'OCR results not found. Run OCR first.' });
         }
         const ocrResults = JSON.parse(fs.readFileSync(ocrPath, 'utf-8'));
+
+        // Get teacher's LLM model preference
+        const teacher = await Teacher.findById(req.teacherId).select('llmModel');
+        const selectedModel = teacher?.llmModel || 'gpt-oss-120b';
+        console.log(`Evaluation using model: ${selectedModel}`);
 
         // Find the StudentCopy to get paperId
         const studentCopy = await StudentCopy.findOne({ sessionId, teacherId: req.teacherId }).populate('paperId');
@@ -231,7 +271,7 @@ router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
             if (studentAnswer.trim().length < 5) {
                 llmResult = { marks: 0, feedback: 'No substantial answer provided.', confidence: 0, ocrQuality: 0 };
             } else {
-                llmResult = await evaluateWithLLM(questionText, maxMarks, rubrics, studentAnswer);
+                llmResult = await evaluateWithLLM(questionText, maxMarks, rubrics, studentAnswer, selectedModel);
             }
 
             questionResults.push({
@@ -248,6 +288,12 @@ router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
             });
 
             console.log(`  ${questionKey}: ${llmResult.marks}/${maxMarks} (OCR: ${llmResult.ocrQuality}%, LLM: ${llmResult.confidence}%)`);
+
+            const remainingQuestions = Object.keys(ocrQuestions).length - questionResults.length;
+            if (remainingQuestions > 0 && studentAnswer.trim().length >= 5) {
+                console.log(`  ⏳ Waiting ${RATE_LIMIT_DELAY_MS / 1000}s before next question (${remainingQuestions} remaining)...`);
+                await sleep(RATE_LIMIT_DELAY_MS);
+            }
         }
 
         // Calculate total and accuracy averages, then save

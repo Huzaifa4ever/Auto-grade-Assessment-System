@@ -839,3 +839,42 @@ export async function getDashboardStats(): Promise<ApiResponse<DashboardStats>> 
     };
   }
 }
+
+export async function getLlmModel(): Promise<ApiResponse<{ llmModel: string }>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/llm-model`, {
+      headers: { ...authHeaders() },
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data: { llmModel: data.llmModel } };
+  } catch (error) {
+    console.error('Error fetching LLM model:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch LLM model preference',
+    };
+  }
+}
+
+export async function setLlmModel(llmModel: string): Promise<ApiResponse<{ llmModel: string; message: string }>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/llm-model`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+      },
+      body: JSON.stringify({ llmModel }),
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const data = await response.json();
+    return { success: true, data: { llmModel: data.llmModel, message: data.message } };
+  } catch (error) {
+    console.error('Error setting LLM model:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update LLM model preference',
+    };
+  }
+}

@@ -327,6 +327,120 @@
 	font-size: 14px;
 }
 
+/* LLM Model Selection */
+.modelGrid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+}
+
+.modelCard {
+	display: flex;
+	align-items: flex-start;
+	gap: 14px;
+	padding: 20px;
+	border: 2px solid #e2e8f0;
+	border-radius: 12px;
+	cursor: pointer;
+	transition: all 0.25s ease;
+	background: #fafbfc;
+}
+
+.modelCard:hover {
+	border-color: #94a3b8;
+	background: #f8fafc;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.modelCardActive {
+	border-color: #198754;
+	background: #f0fdf4;
+	box-shadow: 0 0 0 1px #198754, 0 2px 12px rgba(25, 135, 84, 0.12);
+}
+
+.modelCardActive:hover {
+	border-color: #198754;
+	background: #f0fdf4;
+}
+
+.modelRadio {
+	padding-top: 2px;
+	flex-shrink: 0;
+}
+
+.radioCircle {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	border: 2px solid #cbd5e1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s ease;
+}
+
+.radioActive {
+	border-color: #198754;
+}
+
+.radioDot {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: #198754;
+	animation: radioFadeIn 0.2s ease;
+}
+
+@keyframes radioFadeIn {
+	from { transform: scale(0); opacity: 0; }
+	to { transform: scale(1); opacity: 1; }
+}
+
+.modelInfo {
+	flex: 1;
+}
+
+.modelName {
+	font-size: 16px;
+	font-weight: 600;
+	color: #1a1a1a;
+	margin-bottom: 2px;
+}
+
+.modelId {
+	font-size: 13px;
+	color: #64748b;
+	font-family: 'SFMono-Regular', 'Menlo', monospace;
+	margin-bottom: 8px;
+}
+
+.modelMeta {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.modelBadge {
+	font-size: 11px;
+	font-weight: 600;
+	padding: 2px 8px;
+	border-radius: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.modelCtx {
+	font-size: 12px;
+	color: #94a3b8;
+}
+
+.modelSavingIndicator {
+	margin-top: 8px;
+	font-size: 13px;
+	color: #2563eb;
+	font-style: italic;
+}
+
 @media (max-width: 640px) {
 	.profileGrid {
 		grid-template-columns: 1fr;
@@ -334,5 +448,9 @@
 
 	.profileSaveRow {
 		flex-direction: column;
+	}
+
+	.modelGrid {
+		grid-template-columns: 1fr;
 	}
 }
