@@ -6,7 +6,6 @@ import EvaluationResult from "../models/EvaluationResult.js";
 import StudentCopy from "../models/StudentCopy.js";
 import Teacher from "../models/Teacher.js";
 import Paper from "../models/Paper.js";
-import Cerebras from "@cerebras/cerebras_cloud_sdk";
 import dotenv from "dotenv";
 import authMiddleware from "../middleware/authMiddleware.js";
 import mongoose from "mongoose";
@@ -17,20 +16,154 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMP_FOLDER = path.resolve(__dirname, '../../pdf_processor/temp');
 
-const cerebras = new Cerebras({
-    apiKey: process.env.CEREBRAS_API_KEY
-});
-
 const router = express.Router();
 
-const RATE_LIMIT_DELAY_MS = 13000;
-const MAX_RETRIES = 3;
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Question Matching
+const MAX_RETRIES = 3;
+
+const PROVIDER_ENDPOINTS = {
+    'cerebras-free': 'https://api.cerebras.ai/v1',
+};
+const PROVIDER_DEFAULT_MODELS = {
+    'cerebras-free': 'gpt-oss-120b',
+    'custom': '',
+};
+const PROVIDER_DEFAULT_RPM = {
+    'cerebras-free': 5,
+    'custom': 10,
+};
+
+function resolveLlmConfig(teacher) {
+    if (teacher.llmConfig && teacher.llmConfig.provider) {
+        const cfg = teacher.llmConfig;
+        const isFree = cfg.provider === 'cerebras-free';
+        return {
+            provider: cfg.provider,
+            teacherId: teacher._id.toString(),
+            model: cfg.model || PROVIDER_DEFAULT_MODELS[cfg.provider] || 'gpt-oss-120b',
+            apiKey: isFree ? process.env.CEREBRAS_API_KEY : cfg.apiKey,
+            endpoint: isFree ? PROVIDER_ENDPOINTS['cerebras-free'] : cfg.endpoint,
+            rpm: cfg.rpm || PROVIDER_DEFAULT_RPM[cfg.provider] || 5,
+            tpm: cfg.tpm || 30000,
+            fallbackEnabled: cfg.fallbackEnabled !== false,
+        };
+    }
+
+    return {
+        provider: 'cerebras-free',
+        teacherId: teacher._id.toString(),
+        model: teacher.llmModel || 'gpt-oss-120b',
+        apiKey: process.env.CEREBRAS_API_KEY,
+        endpoint: PROVIDER_ENDPOINTS['cerebras-free'],
+        rpm: 5,
+        tpm: 30000,
+        fallbackEnabled: true,
+    };
+}
+
+
+async function callLLMRaw(endpoint, apiKey, model, prompt) {
+    const url = `${endpoint}/chat/completions`;
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+        }),
+    });
+
+    const quotaHeaders = {
+        rpmLimit: parseInt(response.headers.get('x-ratelimit-limit-requests') || '0', 10),
+        rpmRemaining: parseInt(response.headers.get('x-ratelimit-remaining-requests') || '0', 10),
+        tpmLimit: parseInt(response.headers.get('x-ratelimit-limit-tokens') || '0', 10),
+    };
+
+    if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        const err = new Error(`${response.status} ${errorBody}`);
+        err.status = response.status;
+        err.quotaHeaders = quotaHeaders;
+        throw err;
+    }
+
+    const data = await response.json();
+    return {
+        content: data.choices?.[0]?.message?.content || '',
+        quotaHeaders,
+    };
+}
+
+async function callLLMWithRetry(config, prompt) {
+    const { endpoint, apiKey, model, rpm } = config;
+    const baseDelay = Math.max(Math.ceil(60000 / (rpm || 5) * 1.2), 2000);
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+            console.log(`    [LLM] ${config.provider}/${model} (attempt ${attempt}/${MAX_RETRIES})`);
+            const result = await callLLMRaw(endpoint, apiKey, model, prompt);
+            return result;
+        } catch (err) {
+            lastError = err;
+            const is429 = err.status === 429 || (err.message && (
+                err.message.includes('429') ||
+                err.message.toLowerCase().includes('rate') ||
+                err.message.toLowerCase().includes('traffic')
+            ));
+
+            if (is429 && attempt < MAX_RETRIES) {
+                const backoffMs = baseDelay * attempt;
+                console.log(`    ⏳ Rate limited. Waiting ${(backoffMs / 1000).toFixed(1)}s before retry...`);
+                await sleep(backoffMs);
+            } else if (!is429) {
+                break;
+            }
+        }
+    }
+
+    throw lastError || new Error('LLM call failed after retries');
+}
+
+function getConcurrencySettings(rpm) {
+    if (rpm >= 60) return { concurrent: 4, delayMs: 1200 };
+    if (rpm >= 30) return { concurrent: 3, delayMs: 2500 };
+    if (rpm >= 15) return { concurrent: 2, delayMs: 4500 };
+    if (rpm >= 10) return { concurrent: 1, delayMs: 7000 };
+    return { concurrent: 1, delayMs: 13000 };
+}
+
+async function processWithConcurrency(items, concurrent, delayMs, processFn) {
+    const results = new Array(items.length);
+    let index = 0;
+
+    async function worker() {
+        while (index < items.length) {
+            const i = index++;
+            results[i] = await processFn(items[i], i);
+            if (index < items.length && delayMs > 0) {
+                await sleep(delayMs);
+            }
+        }
+    }
+
+    const workers = [];
+    for (let w = 0; w < Math.min(concurrent, items.length); w++) {
+        workers.push(worker());
+        if (w < concurrent - 1 && concurrent > 1) {
+            await sleep(Math.floor(delayMs / concurrent));
+        }
+    }
+    await Promise.all(workers);
+    return results;
+}
 
 function normalizeLabel(label) {
     return (label || '').replace(/[()]/g, '').trim().toLowerCase();
@@ -96,14 +229,13 @@ function matchQuestionToPaper(questionKey, paper) {
     };
 }
 
-// LLM Evaluation ,per-question 
 
-async function evaluateWithLLM(questionText, maxMarks, rubrics, studentAnswer, modelName = 'gpt-oss-120b') {
+function buildEvalPrompt(questionText, maxMarks, rubrics, studentAnswer) {
     const rubricsText = rubrics.length > 0
         ? rubrics.map((r, i) => `${i + 1}. ${r}`).join('\n')
         : 'No specific rubrics provided. Grade based on correctness and completeness.';
 
-    const prompt = `You are an expert exam evaluator. Grade this student's handwritten answer that was extracted using OCR (Optical Character Recognition).
+    return `You are an expert exam evaluator. Grade this student's handwritten answer that was extracted using OCR (Optical Character Recognition).
 
 Question: ${questionText}
 Maximum Marks: ${maxMarks}
@@ -135,72 +267,54 @@ Rules:
 - If the answer is mostly correct but has minor issues, give partial marks
 - If the answer is blank or completely wrong, give 0
 - Return ONLY the JSON object, no markdown or extra text`;
+}
+
+function parseLLMResponse(responseText, maxMarks) {
+    let text = responseText.trim();
+    if (text.startsWith("```json")) {
+        text = text.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+    } else if (text.startsWith("```")) {
+        text = text.replace(/^```\s*/, "").replace(/\s*```$/, "");
+    }
+
+    const parsed = JSON.parse(text);
+    return {
+        marks: Math.min(Math.max(Number(parsed.marks) || 0, 0), maxMarks),
+        feedback: parsed.feedback || '',
+        confidence: Math.min(Math.max(Number(parsed.confidence) || 70, 0), 100),
+        ocrQuality: Math.min(Math.max(Number(parsed.ocr_quality) || 70, 0), 100),
+    };
+}
+
+
+async function evaluateSingleQuestion(config, fallbackConfig, questionText, maxMarks, rubrics, studentAnswer) {
+    const prompt = buildEvalPrompt(questionText, maxMarks, rubrics, studentAnswer);
 
     try {
-        let lastError = null;
+        const result = await callLLMWithRetry(config, prompt);
+        return parseLLMResponse(result.content, maxMarks);
+    } catch (primaryErr) {
+        console.error(`    ❌ Primary LLM failed: ${primaryErr.message}`);
 
-        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        if (fallbackConfig && fallbackConfig.provider !== config.provider) {
             try {
-                console.log(`  Using LLM model: ${modelName} (attempt ${attempt}/${MAX_RETRIES})`);
-                const chat = await cerebras.chat.completions.create({
-                    model: modelName,
-                    messages: [
-                        { role: "user", content: prompt }
-                    ]
-                });
-
-                let responseText = chat?.choices?.[0]?.message?.content || "";
-                responseText = responseText.trim();
-
-                if (responseText.startsWith("```json")) {
-                    responseText = responseText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-                } else if (responseText.startsWith("```")) {
-                    responseText = responseText.replace(/^```\s*/, "").replace(/\s*```$/, "");
-                }
-
-                const parsed = JSON.parse(responseText);
-                const marks = Math.min(Math.max(Number(parsed.marks) || 0, 0), maxMarks);
-                const feedback = parsed.feedback || '';
-                const confidence = Math.min(Math.max(Number(parsed.confidence) || 70, 0), 100);
-                const ocrQuality = Math.min(Math.max(Number(parsed.ocr_quality) || 70, 0), 100);
-
-                return { marks, feedback, confidence, ocrQuality };
-            } catch (err) {
-                lastError = err;
-                const is429 = err.message && (err.message.includes('429') || err.message.toLowerCase().includes('rate') || err.message.toLowerCase().includes('traffic'));
-
-                if (is429 && attempt < MAX_RETRIES) {
-                    const backoffMs = RATE_LIMIT_DELAY_MS * attempt;
-                    console.log(`  ⏳ Rate limited (429). Waiting ${backoffMs / 1000}s before retry ${attempt + 1}...`);
-                    await sleep(backoffMs);
-                } else if (!is429) {
-                    // Non-rate-limit error, don't retry
-                    break;
-                }
+                console.log(`    🔄 Falling back to ${fallbackConfig.provider}/${fallbackConfig.model}...`);
+                const result = await callLLMWithRetry(fallbackConfig, prompt);
+                return parseLLMResponse(result.content, maxMarks);
+            } catch (fallbackErr) {
+                console.error(`    ❌ Fallback LLM also failed: ${fallbackErr.message}`);
             }
         }
 
-        console.error('LLM evaluation error after retries:', lastError?.message);
         return {
             marks: 0,
-            feedback: `Evaluation error: ${lastError?.message || 'Unknown error'}. Please grade manually.`,
+            feedback: `Evaluation error: ${primaryErr.message}. Please grade manually.`,
             confidence: 0,
-            ocrQuality: 0
-        };
-    } catch (err) {
-        console.error('LLM evaluation error:', err.message);
-        return {
-            marks: 0,
-            feedback: `Evaluation error: ${err.message}. Please grade manually.`,
-            confidence: 0,
-            ocrQuality: 0
+            ocrQuality: 0,
         };
     }
 }
 
-// Routes
-
-// Trigger evaluation for a student
 router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
     const { sessionId, cmsId } = req.params;
 
@@ -212,19 +326,30 @@ router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
         }
         const ocrResults = JSON.parse(fs.readFileSync(ocrPath, 'utf-8'));
 
-        // Get teacher's LLM model preference
-        const teacher = await Teacher.findById(req.teacherId).select('llmModel');
-        const selectedModel = teacher?.llmModel || 'gpt-oss-120b';
-        console.log(`Evaluation using model: ${selectedModel}`);
+        const teacher = await Teacher.findById(req.teacherId);
+        const config = resolveLlmConfig(teacher);
 
-        // Find the StudentCopy to get paperId
+        const fallbackConfig = config.fallbackEnabled && config.provider !== 'cerebras-free'
+            ? {
+                provider: 'cerebras-free',
+                model: 'gpt-oss-120b',
+                apiKey: process.env.CEREBRAS_API_KEY,
+                endpoint: PROVIDER_ENDPOINTS['cerebras-free'],
+                rpm: 5,
+            }
+            : null;
+
+        const { concurrent, delayMs } = getConcurrencySettings(config.rpm);
+        console.log(`\n📝 Evaluation: ${cmsId}`);
+        console.log(`   Provider: ${config.provider} | Model: ${config.model} | RPM: ${config.rpm} | Teacher: ${config.teacherId}`);
+        console.log(`   Mode: ${concurrent > 1 ? `Parallel (${concurrent}x)` : 'Sequential'} | Delay: ${(delayMs / 1000).toFixed(1)}s`);
+
         const studentCopy = await StudentCopy.findOne({ sessionId, teacherId: req.teacherId }).populate('paperId');
         if (!studentCopy || !studentCopy.paperId) {
             return res.status(404).json({ success: false, error: 'No paper linked to this session.' });
         }
         const paper = studentCopy.paperId;
 
-        // Find student info
         const studentInfo = studentCopy.students.find(s => s.cmsId === cmsId);
         const studentName = studentInfo?.name || '';
 
@@ -235,7 +360,7 @@ router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
         }
 
         // Create/update evaluation record
-        const evalResult = await EvaluationResult.findOneAndUpdate(
+        await EvaluationResult.findOneAndUpdate(
             { sessionId, cmsId },
             {
                 sessionId,
@@ -253,50 +378,55 @@ router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
             { upsert: true, new: true }
         );
 
-        res.json({ success: true, message: 'Evaluation started', resultId: evalResult._id });
+        res.json({ success: true, message: 'Evaluation started' });
 
-        const questionResults = [];
         const ocrQuestions = ocrResults.questions || {};
-
-        for (const [questionKey, ocrData] of Object.entries(ocrQuestions)) {
-            console.log(`  Evaluating ${cmsId} — ${questionKey}...`);
-
+        const questionEntries = Object.entries(ocrQuestions).map(([questionKey, ocrData]) => {
             const paperMatch = matchQuestionToPaper(questionKey, paper);
-            const questionText = paperMatch?.questionText || 'Question not found in paper';
-            const maxMarks = paperMatch?.maxMarks || 0;
-            const rubrics = paperMatch?.rubrics || [];
-            const studentAnswer = ocrData.extractedText || '';
-
-            let llmResult;
-            if (studentAnswer.trim().length < 5) {
-                llmResult = { marks: 0, feedback: 'No substantial answer provided.', confidence: 0, ocrQuality: 0 };
-            } else {
-                llmResult = await evaluateWithLLM(questionText, maxMarks, rubrics, studentAnswer, selectedModel);
-            }
-
-            questionResults.push({
+            return {
                 questionKey,
-                questionText,
-                maxMarks,
-                obtainedMarks: llmResult.marks,
-                feedback: llmResult.feedback,
-                studentAnswer,
-                rubrics: rubrics,
-                edited: false,
-                ocrConfidence: llmResult.ocrQuality,
-                llmConfidence: llmResult.confidence
-            });
+                questionText: paperMatch?.questionText || 'Question not found in paper',
+                maxMarks: paperMatch?.maxMarks || 0,
+                rubrics: paperMatch?.rubrics || [],
+                studentAnswer: ocrData.extractedText || '',
+            };
+        });
 
-            console.log(`  ${questionKey}: ${llmResult.marks}/${maxMarks} (OCR: ${llmResult.ocrQuality}%, LLM: ${llmResult.confidence}%)`);
+        const questionResults = await processWithConcurrency(
+            questionEntries,
+            concurrent,
+            delayMs,
+            async (q, idx) => {
+                console.log(`  [${idx + 1}/${questionEntries.length}] ${q.questionKey}...`);
 
-            const remainingQuestions = Object.keys(ocrQuestions).length - questionResults.length;
-            if (remainingQuestions > 0 && studentAnswer.trim().length >= 5) {
-                console.log(`  ⏳ Waiting ${RATE_LIMIT_DELAY_MS / 1000}s before next question (${remainingQuestions} remaining)...`);
-                await sleep(RATE_LIMIT_DELAY_MS);
+                let llmResult;
+                if (q.studentAnswer.trim().length < 5) {
+                    llmResult = { marks: 0, feedback: 'No substantial answer provided.', confidence: 0, ocrQuality: 0 };
+                } else {
+                    llmResult = await evaluateSingleQuestion(
+                        config, fallbackConfig,
+                        q.questionText, q.maxMarks, q.rubrics, q.studentAnswer
+                    );
+                }
+
+                console.log(`  ✓ ${q.questionKey}: ${llmResult.marks}/${q.maxMarks} (OCR: ${llmResult.ocrQuality}% | LLM: ${llmResult.confidence}%)`);
+
+                return {
+                    questionKey: q.questionKey,
+                    questionText: q.questionText,
+                    maxMarks: q.maxMarks,
+                    obtainedMarks: llmResult.marks,
+                    feedback: llmResult.feedback,
+                    studentAnswer: q.studentAnswer,
+                    rubrics: q.rubrics,
+                    edited: false,
+                    ocrConfidence: llmResult.ocrQuality,
+                    llmConfidence: llmResult.confidence,
+                };
             }
-        }
+        );
 
-        // Calculate total and accuracy averages, then save
+
         const obtainedMarks = questionResults.reduce((sum, q) => sum + q.obtainedMarks, 0);
         const ocrAccuracy = questionResults.length > 0
             ? Math.round(questionResults.reduce((s, q) => s + q.ocrConfidence, 0) / questionResults.length)
@@ -317,7 +447,7 @@ router.post('/evaluate/:sessionId/:cmsId', authMiddleware, async (req, res) => {
             }
         );
 
-        console.log(` Evaluation complete for ${cmsId}: ${obtainedMarks}/${paper.totalMarks || 0} (OCR: ${ocrAccuracy}%, LLM: ${llmAccuracy}%)`);
+        console.log(`✅ Complete: ${cmsId} — ${obtainedMarks}/${paper.totalMarks || 0} (OCR: ${ocrAccuracy}% | LLM: ${llmAccuracy}%)\n`);
 
     } catch (error) {
         console.error('Evaluation error:', error);

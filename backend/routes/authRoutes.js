@@ -185,7 +185,7 @@ router.get('/me', async (req, res) => {
                 name: teacher.name,
                 email: teacher.email,
                 userId: teacher.userId,
-                llmModel: teacher.llmModel || 'gpt-oss-120b'
+                llmConfig: teacher.llmConfig || { provider: 'cerebras-free', model: 'gpt-oss-120b' }
             }
         });
     } catch (error) {
@@ -382,8 +382,7 @@ router.put('/update-profile', express.json(), async (req, res) => {
     }
 });
 
-// Get LLM model preference
-router.get('/llm-model', async (req, res) => {
+router.get('/llm-config', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -391,11 +390,25 @@ router.get('/llm-model', async (req, res) => {
         }
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
-        const teacher = await Teacher.findById(decoded.id).select('llmModel');
+        const teacher = await Teacher.findById(decoded.id).select('llmConfig llmModel');
         if (!teacher) {
             return res.status(404).json({ success: false, error: 'Teacher not found' });
         }
-        res.json({ success: true, llmModel: teacher.llmModel || 'gpt-oss-120b' });
+
+        const config = teacher.llmConfig && teacher.llmConfig.provider
+            ? teacher.llmConfig
+            : { provider: 'cerebras-free', model: teacher.llmModel || 'gpt-oss-120b', apiKey: '', endpoint: '', rpm: 5, tpm: 30000, fallbackEnabled: true };
+
+        const safeConfig = { ...config.toObject ? config.toObject() : config };
+        if (safeConfig.apiKey) {
+            safeConfig.apiKeySet = true;
+            safeConfig.apiKeyPreview = safeConfig.apiKey.slice(0, 6) + '...' + safeConfig.apiKey.slice(-4);
+        } else {
+            safeConfig.apiKeySet = false;
+            safeConfig.apiKeyPreview = '';
+        }
+        delete safeConfig.apiKey;
+        res.json({ success: true, config: safeConfig });
     } catch (error) {
         if (error.name === 'JsonWebTokenError') {
             return res.status(401).json({ success: false, error: 'Invalid token' });
@@ -404,8 +417,7 @@ router.get('/llm-model', async (req, res) => {
     }
 });
 
-// Set LLM model preference
-router.put('/llm-model', express.json(), async (req, res) => {
+router.put('/llm-config', express.json(), async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -414,31 +426,145 @@ router.put('/llm-model', express.json(), async (req, res) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
 
-        const { llmModel } = req.body;
-        const validModels = ['gpt-oss-120b', 'zai-glm-4.7'];
-        if (!llmModel || !validModels.includes(llmModel)) {
-            return res.status(400).json({
-                success: false,
-                error: `Invalid model. Choose one of: ${validModels.join(', ')}`
-            });
+        const { provider, model, apiKey, endpoint, rpm, tpm, fallbackEnabled } = req.body;
+        const validProviders = ['cerebras-free', 'custom'];
+        if (!provider || !validProviders.includes(provider)) {
+            return res.status(400).json({ success: false, error: 'Invalid provider' });
+        }
+        if (provider === 'custom' && !apiKey) {
+            const existing = await Teacher.findById(decoded.id).select('llmConfig');
+            if (!existing?.llmConfig?.apiKey) {
+                return res.status(400).json({ success: false, error: 'API key is required for custom provider' });
+            }
         }
 
-        const teacher = await Teacher.findByIdAndUpdate(
-            decoded.id,
-            { llmModel },
-            { new: true }
-        ).select('llmModel');
+        const update = {
+            'llmConfig.provider': provider,
+            'llmConfig.model': model || '',
+            'llmConfig.endpoint': endpoint || '',
+            'llmConfig.rpm': rpm || 5,
+            'llmConfig.tpm': tpm || 30000,
+            'llmConfig.fallbackEnabled': fallbackEnabled !== false,
+        };
 
+
+        if (apiKey) {
+            update['llmConfig.apiKey'] = apiKey;
+        }
+
+        const teacher = await Teacher.findByIdAndUpdate(decoded.id, { $set: update }, { new: true }).select('llmConfig');
         if (!teacher) {
             return res.status(404).json({ success: false, error: 'Teacher not found' });
         }
 
-        res.json({ success: true, llmModel: teacher.llmModel, message: 'LLM model updated successfully' });
+        const safeConfig = { ...teacher.llmConfig.toObject() };
+        if (safeConfig.apiKey) {
+            safeConfig.apiKeySet = true;
+            safeConfig.apiKeyPreview = safeConfig.apiKey.slice(0, 6) + '...' + safeConfig.apiKey.slice(-4);
+        } else {
+            safeConfig.apiKeySet = false;
+            safeConfig.apiKeyPreview = '';
+        }
+        delete safeConfig.apiKey;
+
+        res.json({ success: true, config: safeConfig, message: 'LLM configuration updated' });
     } catch (error) {
         if (error.name === 'JsonWebTokenError') {
             return res.status(401).json({ success: false, error: 'Invalid token' });
         }
-        console.error('Set LLM model error:', error);
+        console.error('Set LLM config error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Test LLM connection
+router.post('/test-llm-connection', express.json(), async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ success: false, error: 'No token provided' });
+        }
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, JWT_SECRET);
+
+        const { provider, apiKey, endpoint, model } = req.body;
+
+        const ENDPOINTS = {
+            'cerebras-free': 'https://api.cerebras.ai/v1',
+        };
+
+        const DEFAULTS = {
+            'cerebras-free': 'gpt-oss-120b',
+            'custom': model || 'default',
+        };
+
+        const resolvedKey = provider === 'cerebras-free'
+            ? process.env.CEREBRAS_API_KEY
+            : (apiKey || (await Teacher.findById(decoded.id).select('llmConfig'))?.llmConfig?.apiKey);
+        const resolvedEndpoint = provider === 'custom' ? endpoint : ENDPOINTS[provider];
+        const resolvedModel = model || DEFAULTS[provider];
+
+        if (!resolvedKey) {
+            return res.status(400).json({ success: false, error: 'No API key available' });
+        }
+        if (!resolvedEndpoint) {
+            return res.status(400).json({ success: false, error: 'No endpoint configured' });
+        }
+
+        const url = `${resolvedEndpoint}/chat/completions`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${resolvedKey}`,
+            },
+            body: JSON.stringify({
+                model: resolvedModel,
+                messages: [{ role: 'user', content: 'Reply with just: OK' }],
+                max_tokens: 5,
+            }),
+        });
+
+        const rpmLimit = parseInt(response.headers.get('x-ratelimit-limit-requests') || '0', 10);
+        const tpmLimit = parseInt(response.headers.get('x-ratelimit-limit-tokens') || '0', 10);
+
+        if (!response.ok) {
+            const errBody = await response.text().catch(() => '');
+
+            await Teacher.findByIdAndUpdate(decoded.id, {
+                $set: { 'llmConfig.lastTested': new Date(), 'llmConfig.lastStatus': 'error' }
+            });
+            return res.json({
+                success: false,
+                error: `${response.status}: ${errBody.slice(0, 200)}`,
+                detectedRpm: rpmLimit || null,
+                detectedTpm: tpmLimit || null,
+            });
+        }
+
+        const data = await response.json();
+        const replyContent = data.choices?.[0]?.message?.content || '';
+
+        const statusUpdate = {
+            'llmConfig.lastTested': new Date(),
+            'llmConfig.lastStatus': 'connected',
+        };
+        if (rpmLimit > 0) statusUpdate['llmConfig.rpm'] = rpmLimit;
+        if (tpmLimit > 0) statusUpdate['llmConfig.tpm'] = tpmLimit;
+        await Teacher.findByIdAndUpdate(decoded.id, { $set: statusUpdate });
+
+        res.json({
+            success: true,
+            message: `Connected! Model responded: "${replyContent.trim().slice(0, 50)}"`,
+            detectedRpm: rpmLimit || null,
+            detectedTpm: tpmLimit || null,
+            model: resolvedModel,
+        });
+    } catch (error) {
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ success: false, error: 'Invalid token' });
+        }
+        console.error('Test connection error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

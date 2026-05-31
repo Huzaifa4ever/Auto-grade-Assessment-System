@@ -840,41 +840,91 @@ export async function getDashboardStats(): Promise<ApiResponse<DashboardStats>> 
   }
 }
 
-export async function getLlmModel(): Promise<ApiResponse<{ llmModel: string }>> {
+export interface LlmConfig {
+  provider: string;
+  model: string;
+  apiKeySet: boolean;
+  apiKeyPreview: string;
+  endpoint: string;
+  rpm: number;
+  tpm: number;
+  fallbackEnabled: boolean;
+  lastTested: string | null;
+  lastStatus: string | null;
+}
+
+export async function getLlmConfig(): Promise<ApiResponse<LlmConfig>> {
   try {
-    const response = await fetch(`${AUTH_API_BASE_URL}/llm-model`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/llm-config`, {
       headers: { ...authHeaders() },
     });
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
-    return { success: true, data: { llmModel: data.llmModel } };
+    return { success: true, data: data.config };
   } catch (error) {
-    console.error('Error fetching LLM model:', error);
+    console.error('Error fetching LLM config:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch LLM model preference',
+      error: error instanceof Error ? error.message : 'Failed to fetch LLM config',
     };
   }
 }
 
-export async function setLlmModel(llmModel: string): Promise<ApiResponse<{ llmModel: string; message: string }>> {
+export async function setLlmConfig(config: {
+  provider: string;
+  model?: string;
+  apiKey?: string;
+  endpoint?: string;
+  rpm?: number;
+  tpm?: number;
+  fallbackEnabled?: boolean;
+}): Promise<ApiResponse<LlmConfig>> {
   try {
-    const response = await fetch(`${AUTH_API_BASE_URL}/llm-model`, {
+    const response = await fetch(`${AUTH_API_BASE_URL}/llm-config`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         ...authHeaders(),
       },
-      body: JSON.stringify({ llmModel }),
+      body: JSON.stringify(config),
     });
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     const data = await response.json();
-    return { success: true, data: { llmModel: data.llmModel, message: data.message } };
+    return { success: true, data: data.config };
   } catch (error) {
-    console.error('Error setting LLM model:', error);
+    console.error('Error setting LLM config:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to update LLM model preference',
+      error: error instanceof Error ? error.message : 'Failed to update LLM config',
+    };
+  }
+}
+
+export async function testLlmConnection(params: {
+  provider: string;
+  apiKey?: string;
+  endpoint?: string;
+  model?: string;
+}): Promise<ApiResponse<{ message: string; detectedRpm: number | null; detectedTpm: number | null; model: string }>> {
+  try {
+    const response = await fetch(`${AUTH_API_BASE_URL}/test-llm-connection`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders(),
+      },
+      body: JSON.stringify(params),
+    });
+    const data = await response.json();
+    if (!data.success) {
+      return { success: false, error: data.error, data };
+    }
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error testing LLM connection:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Connection test failed',
     };
   }
 }
