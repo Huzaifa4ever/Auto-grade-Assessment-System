@@ -11,7 +11,6 @@ import ocrRoutes from "./routes/ocrRoutes.js";
 import evaluationRoutes from "./routes/evaluationRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import authMiddleware from "./middleware/authMiddleware.js";
-import Cerebras from "@cerebras/cerebras_cloud_sdk";
 import EvaluationResult from "./models/EvaluationResult.js";
 import StudentCopy from "./models/StudentCopy.js";
 import Paper from "./models/Paper.js";
@@ -26,13 +25,36 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMP_FOLDER = path.resolve(__dirname, '../pdf_processor/temp');
 
-const cerebras = new Cerebras({
-  apiKey: process.env.CEREBRAS_API_KEY
-});
+
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+import Teacher from "./models/Teacher.js";
+
+const PROVIDER_ENDPOINTS_MAP = {
+  'cerebras-free': 'https://api.cerebras.ai/v1',
+};
+
+function resolveTeacherLlmConfig(teacher) {
+  if (teacher.llmConfig && teacher.llmConfig.provider) {
+    const cfg = teacher.llmConfig;
+    const isFree = cfg.provider === 'cerebras-free';
+    return {
+      provider: cfg.provider,
+      model: cfg.model || 'gpt-oss-120b',
+      apiKey: isFree ? process.env.CEREBRAS_API_KEY : cfg.apiKey,
+      endpoint: isFree ? PROVIDER_ENDPOINTS_MAP['cerebras-free'] : cfg.endpoint,
+    };
+  }
+  return {
+    provider: 'cerebras-free',
+    model: 'gpt-oss-120b',
+    apiKey: process.env.CEREBRAS_API_KEY,
+    endpoint: PROVIDER_ENDPOINTS_MAP['cerebras-free'],
+  };
+}
 
 app.post("/api/parse-pdf-text", authMiddleware, async (req, res) => {
   const { extractedText } = req.body;
@@ -42,6 +64,12 @@ app.post("/api/parse-pdf-text", authMiddleware, async (req, res) => {
   }
 
   try {
+    const teacher = await Teacher.findById(req.teacherId);
+    if (!teacher) {
+      return res.status(401).json({ error: "Teacher not found" });
+    }
+    const llmConfig = resolveTeacherLlmConfig(teacher);
+
     const prompt = `You are an expert at parsing question papers. Analyze the following extracted text from a PDF question paper and extract all questions, parts, and sub-parts with their marks.
 
 Extracted text:
@@ -92,26 +120,29 @@ CRITICAL RULES:
 
 Return ONLY the JSON object now:`;
 
-    let responseText;
+    const url = `${llmConfig.endpoint}/chat/completions`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${llmConfig.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: llmConfig.model,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
 
-    try {
-      const chat = await cerebras.chat.completions.create({
-        model: "llama3.1-8b",
-        messages: [
-          { role: "user", content: prompt }
-        ]
-      });
-
-      responseText = chat?.choices?.[0]?.message?.content || "";
-
-    } catch (err) {
-      console.error("Error calling Cerebras LLM:", err);
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
       return res.status(500).json({
         success: false,
-        error: "Failed to parse PDF text with LLM",
-        details: err.message
+        error: `LLM error (${llmConfig.provider}/${llmConfig.model}): ${response.status} ${errBody.slice(0, 200)}`,
       });
     }
+
+    const data = await response.json();
+    let responseText = data.choices?.[0]?.message?.content || "";
 
     responseText = responseText.trim();
     if (responseText.startsWith("```json")) {
@@ -168,7 +199,7 @@ function matchQuestionToPaper(questionKey, paper) {
   return { questionText: subPart.text || part.text || '', maxMarks: subPart.marks || 0, rubrics: (subPart.rubrics || []).map(r => r.text).filter(Boolean) };
 }
 
-async function evaluateWithLLMInternal(questionText, maxMarks, rubrics, studentAnswer) {
+async function evaluateWithLLMInternal(llmConfig, questionText, maxMarks, rubrics, studentAnswer) {
   const rubricsText = rubrics.length > 0
     ? rubrics.map((r, i) => `${i + 1}. ${r}`).join('\n')
     : 'No specific rubrics provided. Grade based on correctness and completeness.';
@@ -197,12 +228,26 @@ Rules:
 - Return ONLY the JSON object, no markdown or extra text`;
 
   try {
-    const chat = await cerebras.chat.completions.create({
-      model: "llama3.1-8b",
-      messages: [{ role: "user", content: prompt }]
+    const url = `${llmConfig.endpoint}/chat/completions`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${llmConfig.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: llmConfig.model,
+        messages: [{ role: 'user', content: prompt }],
+      }),
     });
 
-    let responseText = chat?.choices?.[0]?.message?.content || "";
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => '');
+      throw new Error(`${response.status} ${errBody.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    let responseText = data.choices?.[0]?.message?.content || "";
     responseText = responseText.trim();
     if (responseText.startsWith("```json")) {
       responseText = responseText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
@@ -235,6 +280,9 @@ app.post("/api/evaluation/evaluate-internal/:sessionId/:cmsId", async (req, res)
 
     const paper = studentCopy.paperId;
     const teacherId = studentCopy.teacherId;
+
+    const teacher = await Teacher.findById(teacherId);
+    const llmConfig = resolveTeacherLlmConfig(teacher || {});
 
     // Load OCR results
     const ocrPath = path.resolve(TEMP_FOLDER, sessionId, cmsId, 'ocr_results.json');
@@ -294,7 +342,7 @@ app.post("/api/evaluation/evaluate-internal/:sessionId/:cmsId", async (req, res)
         if (studentAnswer.trim().length < 5) {
           llmResult = { marks: 0, feedback: 'No substantial answer provided.', confidence: 0, ocrQuality: 0 };
         } else {
-          llmResult = await evaluateWithLLMInternal(questionText, maxMarks, rubrics, studentAnswer);
+          llmResult = await evaluateWithLLMInternal(llmConfig, questionText, maxMarks, rubrics, studentAnswer);
         }
 
         questionResults.push({
